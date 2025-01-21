@@ -14,7 +14,7 @@ public class SimpleWriterTest {
     }
 
     @Test
-    public void testClose() throws Exception {
+    public void testClose() {
         SimpleWriter test;
         try (SimpleWriter simpleWriter = new SimpleWriter(new File("./test"), 1)) {
             test = simpleWriter;

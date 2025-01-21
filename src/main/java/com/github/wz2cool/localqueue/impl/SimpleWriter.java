@@ -103,7 +103,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         stopFlush();
         queue.close();
         flushExecutor.shutdown();
