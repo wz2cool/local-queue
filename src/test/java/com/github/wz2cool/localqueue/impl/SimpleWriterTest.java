@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 public class SimpleWriterTest {
 
     @Test
@@ -13,7 +15,10 @@ public class SimpleWriterTest {
 
     @Test
     public void testClose() throws Exception {
-        SimpleWriter simpleWriter = new SimpleWriter(new File("./test"), 1);
-        simpleWriter.close();
+        SimpleWriter test;
+        try (SimpleWriter simpleWriter = new SimpleWriter(new File("./test"), 1)) {
+            test = simpleWriter;
+        }
+        assertTrue(test.isClosed());
     }
 }

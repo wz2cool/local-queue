@@ -91,6 +91,17 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     /// region close
 
+    private volatile boolean isClosed = false;
+
+    /**
+     * 是否已经关闭
+     *
+     * @return true if the writer is closed, false otherwise.
+     */
+    public boolean isClosed() {
+        return isClosed;
+    }
+
     @Override
     public void close() throws Exception {
         stopFlush();
@@ -98,6 +109,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
         flushExecutor.shutdown();
         scheduler.shutdown();
         appenderThreadLocal.remove();
+        isClosed = true;
     }
 
     private void cleanUpOldFiles(int keepDays) {
