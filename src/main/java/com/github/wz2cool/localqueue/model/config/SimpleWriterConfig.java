@@ -1,4 +1,4 @@
-package com.github.wz2cool.localqueue.model.option;
+package com.github.wz2cool.localqueue.model.config;
 
 import java.io.File;
 import java.util.Objects;

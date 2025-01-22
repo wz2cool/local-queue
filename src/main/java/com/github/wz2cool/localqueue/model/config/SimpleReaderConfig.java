@@ -1,4 +1,4 @@
-package com.github.wz2cool.localqueue.model.option;
+package com.github.wz2cool.localqueue.model.config;
 
 import java.io.File;
 import java.util.Objects;
@@ -9,12 +9,31 @@ public class SimpleReaderConfig {
 
     private final File positionFile;
 
-    private final String positionKey;
+    private final String readerKey;
+
+    private final long pullInterval;
 
     private SimpleReaderConfig(final Builder builder) {
         this.dataDir = builder.dataDir;
         this.positionFile = builder.positionFile;
-        this.positionKey = builder.positionKey;
+        this.readerKey = builder.readerKey;
+        this.pullInterval = builder.pullInterval;
+    }
+
+    public File getDataDir() {
+        return dataDir;
+    }
+
+    public File getPositionFile() {
+        return positionFile;
+    }
+
+    public String getReaderKey() {
+        return readerKey;
+    }
+
+    public long getPullInterval() {
+        return pullInterval;
     }
 
     public static class Builder {
@@ -23,7 +42,9 @@ public class SimpleReaderConfig {
 
         private File positionFile;
 
-        private String positionKey;
+        private String readerKey;
+
+        private long pullInterval = 500;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;
@@ -35,8 +56,13 @@ public class SimpleReaderConfig {
             return this;
         }
 
-        public Builder setPositionKey(String positionKey) {
-            this.positionKey = positionKey;
+        public Builder setReaderKey(String readerKey) {
+            this.readerKey = readerKey;
+            return this;
+        }
+
+        public Builder setPullInterval(long pullInterval) {
+            this.pullInterval = pullInterval;
             return this;
         }
 
@@ -45,9 +71,9 @@ public class SimpleReaderConfig {
                 throw new IllegalArgumentException("dataDir cannot be null");
             }
 
-            if (Objects.isNull(positionKey) || positionKey.isEmpty()) {
+            if (Objects.isNull(readerKey) || readerKey.isEmpty()) {
                 // 如果没有就给默认
-                throw new IllegalArgumentException("positionKey cannot be null or empty");
+                throw new IllegalArgumentException("readerKey cannot be null or empty");
             }
 
             if (Objects.isNull(positionFile)) {

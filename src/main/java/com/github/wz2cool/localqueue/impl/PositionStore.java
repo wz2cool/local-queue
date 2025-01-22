@@ -33,7 +33,7 @@ public class PositionStore implements IStore<Long>, AutoCloseable {
                     .averageKeySize(64)
                     .createPersistedTo(storeFile);
         } catch (Exception ex) {
-            throw new IORuntimeException("[ReaderStore.constructor] error", ex);
+            throw new IORuntimeException("[PositionStore.constructor] error", ex);
         }
     }
 

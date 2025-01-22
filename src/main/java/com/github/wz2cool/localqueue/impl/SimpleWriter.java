@@ -1,7 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IWriter;
-import com.github.wz2cool.localqueue.model.option.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;

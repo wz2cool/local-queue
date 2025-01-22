@@ -1,6 +1,6 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.model.option.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
