@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IWriter;
+import com.github.wz2cool.localqueue.model.option.SimpleWriterConfig;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
@@ -24,19 +25,19 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private static final int FLUSH_BATCH_SIZE = 1000;
-    private final File queueDir;
+    private final SimpleWriterConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
     private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public SimpleWriter(File queueDir, int keepDays) {
-        this.queueDir = queueDir;
-        this.queue = ChronicleQueue.singleBuilder(queueDir).rollCycle(RollCycles.FAST_DAILY).build();
+    public SimpleWriter(final SimpleWriterConfig config) {
+        this.config = config;
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.appenderThreadLocal = ThreadLocal.withInitial(this.queue::createAppender);
         flushExecutor.execute(this::flush);
-        scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(keepDays), 0, 1, TimeUnit.HOURS);
+        scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
     }
 
 
@@ -113,11 +114,15 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     }
 
     private void cleanUpOldFiles(int keepDays) {
+        if (keepDays == -1) {
+            // no need clean up old files
+            return;
+        }
         logger.debug("[cleanUpOldFiles] start");
         try {
             long currentTime = System.currentTimeMillis();
             // Assuming .cq4 is the file extension for Chronicle Queue
-            File[] files = this.queueDir.listFiles((dir, name) -> name.endsWith(".cq4"));
+            File[] files = config.getDataDir().listFiles((dir, name) -> name.endsWith(".cq4"));
             if (files == null || files.length == 0) {
                 return;
             }
