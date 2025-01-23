@@ -45,8 +45,12 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     private volatile boolean isFlushing = true;
 
-    private void stopFlush() {
+    public void stopFlush() {
         this.isFlushing = false;
+    }
+
+    public void startFlush() {
+        this.isFlushing = true;
     }
 
     private void flush() {
@@ -88,6 +92,15 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     @Override
     public boolean write(String message) {
         return this.messageCache.offer(message);
+    }
+
+    /**
+     * 获取当前缓存数量
+     *
+     * @return 缓存数量
+     */
+    public long getCurrentCacheCount() {
+        return this.messageCache.size();
     }
 
     /// region close

@@ -17,6 +17,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 
+/**
+ * 简单读取器
+ *
+ * @author frank
+ */
 public class SimpleReader implements IReader, AutoCloseable {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
