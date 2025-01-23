@@ -103,6 +103,10 @@ public class SimpleWriter implements IWriter, AutoCloseable {
         return this.messageCache.size();
     }
 
+    public long getWritePosition() {
+        return this.appenderThreadLocal.get().lastIndexAppended();
+    }
+
     /// region close
 
     private volatile boolean isClosed = false;
