@@ -2,75 +2,66 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
 import org.apache.commons.io.FileUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SimpleWriterTest {
 
-    @Test
-    public void testWriteToCache() throws IOException {
-        File dir = new File("./test");
-        Files.deleteIfExists(dir.toPath());
-        SimpleWriterConfig option = new SimpleWriterConfig.Builder()
-                .setDataDir(dir)
-                .setKeepDays(1)
-                .build();
-        try (SimpleWriter simpleWriter = new SimpleWriter(option)) {
-            // stop flush 为了让数据入到缓存中
-            simpleWriter.stopFlush();
-            simpleWriter.write("test1");
-            simpleWriter.write("test2");
-            long currentCacheCount = simpleWriter.getCurrentCacheCount();
-            assertEquals(2, currentCacheCount);
-        } finally {
-            Files.deleteIfExists(dir.toPath());
-        }
-    }
+    private File dir;
+    private SimpleWriterConfig config;
 
-    @Test
-    public void testWriteToLocal() throws IOException, InterruptedException {
-        File dir = new File("./test");
+    @BeforeEach
+    public void setUp() throws IOException {
+        dir = new File("./test");
         FileUtils.deleteDirectory(dir);
-        SimpleWriterConfig option = new SimpleWriterConfig.Builder()
+        config = new SimpleWriterConfig.Builder()
                 .setDataDir(dir)
                 .setKeepDays(1)
                 .build();
-        try (SimpleWriter simpleWriter = new SimpleWriter(option)) {
-            // stop flush 为了让数据入到缓存中
+    }
+
+    @AfterEach
+    public void cleanUp() throws IOException, InterruptedException {
+        TimeUnit.MILLISECONDS.sleep(500);
+        FileUtils.deleteDirectory(dir);
+    }
+
+    @Test
+    public void testWriteToLocal() throws InterruptedException {
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            simpleWriter.write("init");
+            // make sure data write
+            TimeUnit.MILLISECONDS.sleep(50);
+            long writePosition1 = simpleWriter.getLastPosition();
             simpleWriter.write("test1");
             simpleWriter.write("test2");
-            // 确保数据写入
-            TimeUnit.MILLISECONDS.sleep(100);
-            long writePosition = simpleWriter.getWritePosition();
-            System.out.println("[testWriteToLocal] write position: " + writePosition);
-            assertTrue(writePosition > 0);
-        } finally {
-            FileUtils.deleteDirectory(dir);
+            // make sure data write
+            TimeUnit.MILLISECONDS.sleep(50);
+            long writePosition2 = simpleWriter.getLastPosition();
+            long diff = writePosition2 - writePosition1;
+            assertEquals(2, diff);
         }
     }
 
     @Test
-    public void testClose() throws IOException {
-        File dir = new File("./test");
-        Files.deleteIfExists(dir.toPath());
-        SimpleWriterConfig option = new SimpleWriterConfig.Builder()
-                .setDataDir(new File("./test"))
-                .setKeepDays(1)
-                .build();
-
+    public void testClose() {
         SimpleWriter test;
-        try (SimpleWriter simpleWriter = new SimpleWriter(option)) {
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
             test = simpleWriter;
-        } finally {
-            Files.deleteIfExists(dir.toPath());
         }
         assertTrue(test.isClosed());
     }
+
+    /// region stop flush
+
+
+
+    /// endregion
 }

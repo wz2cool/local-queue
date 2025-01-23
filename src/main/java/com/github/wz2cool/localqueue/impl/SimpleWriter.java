@@ -24,7 +24,6 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private static final int FLUSH_BATCH_SIZE = 1000;
     private final SimpleWriterConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
@@ -43,19 +42,10 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     /// region flush to file
 
-    private volatile boolean isFlushing = true;
-
-    public void stopFlush() {
-        this.isFlushing = false;
-    }
-
-    public void startFlush() {
-        this.isFlushing = true;
-    }
-
+    @SuppressWarnings("InfiniteLoopStatement")
     private void flush() {
-        while (this.isFlushing) {
-            flushInternal(FLUSH_BATCH_SIZE);
+        while (true) {
+            flushInternal(config.getFlushBatchSize());
         }
     }
 
@@ -70,12 +60,6 @@ public class SimpleWriter implements IWriter, AutoCloseable {
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
             }
-
-            // 如果100 一刷可以说明刷的慢了
-            if (tempFlushMessages.size() > 100) {
-                logger.debug("[flushInternal] > 100 batch flush: {}", tempFlushMessages.size());
-            }
-
             ExcerptAppender appender = appenderThreadLocal.get();
             for (String message : tempFlushMessages) {
                 appender.writeText(message);
@@ -95,16 +79,12 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     }
 
     /**
-     * 获取当前缓存数量
+     * get the last position
      *
-     * @return 缓存数量
+     * @return this last position
      */
-    public long getCurrentCacheCount() {
-        return this.messageCache.size();
-    }
-
-    public long getWritePosition() {
-        return this.appenderThreadLocal.get().lastIndexAppended();
+    public long getLastPosition() {
+        return this.queue.lastIndex();
     }
 
     /// region close
@@ -122,7 +102,6 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     @Override
     public void close() {
-        stopFlush();
         queue.close();
         flushExecutor.shutdown();
         scheduler.shutdown();
