@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -121,6 +122,23 @@ public class SimpleWriterTest {
         // No files should be deleted as there are no files in the directory, and should see No file found log.
 
     }
+
+    @Test
+    public void cleanUpOldFiles_FileNewerThanKeepDate_FileNotDeleted() throws Exception {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        LocalDate keepDate = LocalDate.now();
+        String format = formatter.format(keepDate);
+        String fileName = format + "F.cq4";
+
+        File newFile = new File(dir, fileName);
+        FileUtils.createParentDirectories(newFile);
+        newFile.createNewFile();
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, 1);
+        }
+        assertTrue(newFile.exists(), "New file should not be deleted");
+    }
+
 
     /// endregion
 
