@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * 简单读取器
+ * simple reader
  *
  * @author frank
  */
@@ -33,6 +33,11 @@ public class SimpleReader implements IReader, AutoCloseable {
     private volatile long ackedReadPosition = -1;
     private volatile boolean isReadToCacheRunning = true;
 
+    /**
+     * constructor
+     *
+     * @param config the config of reader
+     */
     public SimpleReader(final SimpleReaderConfig config) {
         this.config = config;
         this.messageCache = new LinkedBlockingQueue<>(config.getReadCacheSize());

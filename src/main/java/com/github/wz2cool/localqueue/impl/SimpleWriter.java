@@ -34,6 +34,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private volatile boolean isFlushRunning = true;
 
     public SimpleWriter(final SimpleWriterConfig config) {
         this.config = config;
@@ -45,12 +46,14 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
 
     /// region flush to file
-
-    @SuppressWarnings("InfiniteLoopStatement")
     private void flush() {
-        while (true) {
+        while (isFlushRunning) {
             flushInternal(config.getFlushBatchSize());
         }
+    }
+
+    private void stopFlush() {
+        isFlushRunning = false;
     }
 
     private final List<String> tempFlushMessages = new ArrayList<>();
@@ -106,6 +109,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     @Override
     public void close() {
+        stopFlush();
         queue.close();
         flushExecutor.shutdown();
         scheduler.shutdown();
