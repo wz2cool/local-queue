@@ -64,11 +64,8 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     @Override
     public synchronized Optional<QueueMessage> read() {
-        if (this.messageCache.iterator().hasNext()) {
-            QueueMessage message = this.messageCache.iterator().next();
-            return Optional.of(message);
-        }
-        return Optional.empty();
+        QueueMessage message = this.messageCache.poll();
+        return Optional.ofNullable(message);
     }
 
     @Override
@@ -148,7 +145,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     /// endregion
 
     @Override
-    public void close() throws Exception {
+    public void close()   {
         stopReadToCache();
         queue.close();
         positionStore.close();

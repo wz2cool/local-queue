@@ -31,6 +31,7 @@ public class PositionStore implements IStore<Long>, AutoCloseable {
             this.map = ChronicleMap.of(String.class, Long.class)
                     .name(storeFile.getName())
                     .averageKeySize(64)
+                    .entries(10000)
                     .createPersistedTo(storeFile);
         } catch (Exception ex) {
             throw new IORuntimeException("[PositionStore.constructor] error", ex);
@@ -48,7 +49,7 @@ public class PositionStore implements IStore<Long>, AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         this.map.close();
     }
 }
