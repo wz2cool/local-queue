@@ -144,7 +144,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     private void cleanUpOldFile(final File file, final LocalDate keepDate) throws IOException {
         String fileName = file.getName();
-        String dateString = fileName.replace("F.cq4", "");
+        String dateString = fileName.substring(0, 8);
         LocalDate localDate = LocalDate.parse(dateString, this.dateFormatter);
         if (localDate.isBefore(keepDate)) {
             Files.deleteIfExists(file.toPath());

@@ -42,12 +42,12 @@ public class SimpleWriterTest {
         try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
             simpleWriter.write("init");
             // make sure data write
-            TimeUnit.MILLISECONDS.sleep(50);
+            TimeUnit.MILLISECONDS.sleep(100);
             long writePosition1 = simpleWriter.getLastPosition();
             simpleWriter.write("test1");
             simpleWriter.write("test2");
             // make sure data write
-            TimeUnit.MILLISECONDS.sleep(50);
+            TimeUnit.MILLISECONDS.sleep(100);
             long writePosition2 = simpleWriter.getLastPosition();
             long diff = writePosition2 - writePosition1;
             assertEquals(2, diff);
