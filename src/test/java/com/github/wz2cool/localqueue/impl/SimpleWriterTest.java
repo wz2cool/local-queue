@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,9 +61,72 @@ public class SimpleWriterTest {
         assertTrue(test.isClosed());
     }
 
-    /// region stop flush
+    /// region cleanUpOldFile
+    @Test
+    public void cleanUpOldFile_FileOlderThanKeepDate_FileDeleted() throws Exception {
+        File oldFile = new File(dir, "20230101F.cq4");
+        FileUtils.createParentDirectories(oldFile);
+        oldFile.createNewFile();
+        LocalDate keepDate = LocalDate.of(2023, 1, 2);
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, oldFile, keepDate);
+        }
+        assertFalse(oldFile.exists(), "Old file should be deleted");
+    }
 
+    @Test
+    public void cleanUpOldFile_FileNewerThanKeepDate_FileNotDeleted() throws Exception {
+        File newFile = new File(dir, "20230102F.cq4");
+        FileUtils.createParentDirectories(newFile);
+        newFile.createNewFile();
+        LocalDate keepDate = LocalDate.of(2023, 1, 1);
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, newFile, keepDate);
+        }
+        assertTrue(newFile.exists(), "New file should not be deleted");
+    }
 
+    @Test
+    public void cleanUpOldFile_FileEqualToDate_FileNotDeleted() throws Exception {
+        File file = new File(dir, "20230101F.cq4");
+        FileUtils.createParentDirectories(file);
+        file.createNewFile();
+        LocalDate keepDate = LocalDate.of(2023, 1, 1);
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, file, keepDate);
+        }
+        assertTrue(file.exists(), "File with date equal to keepDate should not be deleted");
+    }
 
     /// endregion
+
+    /// region cleanUpOldFiles
+
+    @Test
+    public void cleanUpOldFiles_KeepDaysMinusOne_NoFilesDeleted() throws Exception {
+        File oldFile = new File(dir, "20230101F.cq4");
+        FileUtils.createParentDirectories(oldFile);
+        oldFile.createNewFile();
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, -1);
+        }
+        assertTrue(oldFile.exists(), "File should not be deleted when keepDays is -1");
+    }
+
+    @Test
+    public void cleanUpOldFiles_NoFilesInDirectory_NoFilesDeleted() throws Exception {
+        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
+            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, 1);
+        }
+        // No files should be deleted as there are no files in the directory, and should see No file found log.
+
+    }
+
+    /// endregion
+
+    private void invokePrivateMethod(Object object, String methodName, Class<?>[] parameterTypes, Object... parameters) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(methodName, parameterTypes);
+        method.setAccessible(true);
+        method.invoke(object, parameters);
+    }
 }

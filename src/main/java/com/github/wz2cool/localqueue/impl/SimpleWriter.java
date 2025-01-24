@@ -10,7 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -30,6 +33,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     public SimpleWriter(final SimpleWriterConfig config) {
         this.config = config;
@@ -116,28 +120,31 @@ public class SimpleWriter implements IWriter, AutoCloseable {
         }
         logger.debug("[cleanUpOldFiles] start");
         try {
-            long currentTime = System.currentTimeMillis();
             // Assuming .cq4 is the file extension for Chronicle Queue
             File[] files = config.getDataDir().listFiles((dir, name) -> name.endsWith(".cq4"));
             if (files == null || files.length == 0) {
+                logger.debug("[cleanUpOldFiles] no files found");
                 return;
             }
-            long keepMillis = TimeUnit.DAYS.toMillis(keepDays);
+            LocalDate now = LocalDate.now();
+            LocalDate keepStartDate = now.minusDays(keepDays);
             for (File file : files) {
-                long fileCreationTime = file.lastModified();
-                if (currentTime - fileCreationTime > keepMillis) {
-                    boolean deleted = Files.deleteIfExists(file.toPath());
-                    if (deleted) {
-                        logger.debug("[cleanUpOldFiles] Deleted old file: {}", file.getName());
-                    } else {
-                        logger.debug("[cleanUpOldFiles] Failed to delete file: {}", file.getName());
-                    }
-                }
+                cleanUpOldFile(file, keepStartDate);
             }
         } catch (Exception ex) {
             logger.error("[cleanUpOldFiles] error", ex);
         } finally {
             logger.debug("[cleanUpOldFiles] end");
+        }
+    }
+
+    private void cleanUpOldFile(final File file, final LocalDate keepDate) throws IOException {
+        String fileName = file.getName();
+        String dateString = fileName.replace("F.cq4", "");
+        LocalDate localDate = LocalDate.parse(dateString, this.dateFormatter);
+        if (localDate.isBefore(keepDate)) {
+            Files.deleteIfExists(file.toPath());
+            logger.debug("[cleanUpOldFile] Deleted old file: {}", file.getName());
         }
     }
 

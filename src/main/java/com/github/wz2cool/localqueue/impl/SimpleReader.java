@@ -3,7 +3,6 @@ package com.github.wz2cool.localqueue.impl;
 import com.github.wz2cool.localqueue.IReader;
 import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
-import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
@@ -11,10 +10,7 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
@@ -33,39 +29,48 @@ public class SimpleReader implements IReader, AutoCloseable {
     private final ThreadLocal<ExcerptTailer> tailerThreadLocal;
     private final ExecutorService readExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private final LinkedBlockingQueue<QueueMessage> messageCache = new LinkedBlockingQueue<>(10000);
+    private final LinkedBlockingQueue<QueueMessage> messageCache;
     private volatile long ackedReadPosition = -1;
     private volatile boolean isReadToCacheRunning = true;
 
     public SimpleReader(final SimpleReaderConfig config) {
         this.config = config;
+        this.messageCache = new LinkedBlockingQueue<>(config.getReadCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.tailerThreadLocal = ThreadLocal.withInitial(this::getExcerptTailer);
-        scheduler.scheduleAtFixedRate(this::storeLastPosition, 0, 1, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
         readExecutor.execute(this::readToCache);
     }
 
     @Override
-    public synchronized QueueMessage blockingRead() {
-        try {
-            return this.messageCache.take();
-        } catch (InterruptedException ex) {
-            throw new InterruptedRuntimeException("[blockingRead] error", ex);
-        }
+    public synchronized QueueMessage blockingRead() throws InterruptedException {
+        return this.messageCache.take();
     }
 
     @Override
-    public synchronized List<QueueMessage> blockingBatchRead(int maxBatchSize) {
-        try {
-            List<QueueMessage> result = new ArrayList<>(maxBatchSize);
-            QueueMessage take = this.messageCache.take();
-            result.add(take);
-            this.messageCache.drainTo(result, maxBatchSize - 1);
-            return result;
-        } catch (InterruptedException ex) {
-            throw new InterruptedRuntimeException("[blockingBatchRead] error", ex);
+    public synchronized List<QueueMessage> blockingBatchRead(int maxBatchSize) throws InterruptedException {
+        List<QueueMessage> result = new ArrayList<>(maxBatchSize);
+        QueueMessage take = this.messageCache.take();
+        result.add(take);
+        this.messageCache.drainTo(result, maxBatchSize - 1);
+        return result;
+    }
+
+    @Override
+    public synchronized Optional<QueueMessage> read() {
+        if (this.messageCache.iterator().hasNext()) {
+            QueueMessage message = this.messageCache.iterator().next();
+            return Optional.of(message);
         }
+        return Optional.empty();
+    }
+
+    @Override
+    public synchronized List<QueueMessage> readBatch(int maxBatchSize) {
+        List<QueueMessage> result = new ArrayList<>(maxBatchSize);
+        this.messageCache.drainTo(result, maxBatchSize);
+        return result;
     }
 
     @Override
@@ -117,7 +122,7 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     /// region position
 
-    private void storeLastPosition() {
+    private void flushPosition() {
         if (ackedReadPosition != -1) {
             setLastPosition(this.ackedReadPosition);
         }
