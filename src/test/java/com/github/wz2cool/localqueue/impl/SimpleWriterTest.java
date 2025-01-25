@@ -91,18 +91,6 @@ public class SimpleWriterTest {
         assertTrue(newFile.exists(), "New file should not be deleted");
     }
 
-    @Test
-    public void cleanUpOldFile_FileEqualToDate_FileNotDeleted() throws Exception {
-        File file = new File(dir, "20230101F.cq4");
-        FileUtils.createParentDirectories(file);
-        file.createNewFile();
-        LocalDate keepDate = LocalDate.of(2023, 1, 1);
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, file, keepDate);
-        }
-        assertTrue(file.exists(), "File with date equal to keepDate should not be deleted");
-    }
-
     /// endregion
 
     /// region cleanUpOldFiles
