@@ -50,7 +50,7 @@ public class SimpleReader implements IReader, AutoCloseable {
         this.messageCache = new LinkedBlockingQueue<>(config.getReadCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
-        this.tailerThreadLocal = ThreadLocal.withInitial(this::getExcerptTailer);
+        this.tailerThreadLocal = ThreadLocal.withInitial(this::initExcerptTailer);
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
         readExecutor.execute(this::readToCache);
     }
@@ -150,7 +150,7 @@ public class SimpleReader implements IReader, AutoCloseable {
         }
     }
 
-    private ExcerptTailer getExcerptTailer() {
+    private ExcerptTailer initExcerptTailer() {
         ExcerptTailer tailer = queue.createTailer();
         Optional<Long> lastPositionOptional = getLastPosition();
         if (lastPositionOptional.isPresent()) {
