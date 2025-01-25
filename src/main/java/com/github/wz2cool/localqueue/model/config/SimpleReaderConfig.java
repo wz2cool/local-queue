@@ -62,7 +62,7 @@ public class SimpleReaderConfig {
 
         private int readCacheSize = 10000;
 
-        private long flushPositionInterval = 500;
+        private long flushPositionInterval = 100;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;

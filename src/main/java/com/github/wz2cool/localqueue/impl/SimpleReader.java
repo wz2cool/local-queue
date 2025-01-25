@@ -113,6 +113,10 @@ public class SimpleReader implements IReader, AutoCloseable {
         this.ackedReadPosition = lastOne.getPosition();
     }
 
+    public long getAckedReadPosition() {
+        return ackedReadPosition;
+    }
+
     public boolean isClosed() {
         return isClosed;
     }
@@ -151,7 +155,8 @@ public class SimpleReader implements IReader, AutoCloseable {
         Optional<Long> lastPositionOptional = getLastPosition();
         if (lastPositionOptional.isPresent()) {
             Long position = lastPositionOptional.get();
-            tailer.moveToIndex(position);
+            long beginPosition = position + 1;
+            tailer.moveToIndex(beginPosition);
         }
         return tailer;
     }

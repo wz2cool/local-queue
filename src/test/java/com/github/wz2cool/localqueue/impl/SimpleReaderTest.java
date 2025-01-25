@@ -10,9 +10,13 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,24 +43,13 @@ public class SimpleReaderTest {
                 .setReaderKey("test")
                 .setPullInterval(1)
                 .setReadCacheSize(100)
-                .setFlushPositionInterval(1000)
+                .setFlushPositionInterval(100)
                 .build();
     }
 
     @AfterEach
     public void cleanUp() throws IOException, InterruptedException {
         FileUtils.deleteDirectory(dir);
-    }
-
-    @Test
-    public void poll_EmptyCache_ReturnsEmptyOptional() {
-        // 队列为空
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            // nothing to write, so nothing to raed
-            Optional<QueueMessage> read = simpleReader.poll();
-            assertFalse(read.isPresent());
-        }
     }
 
     /// region take
@@ -304,6 +297,167 @@ public class SimpleReaderTest {
             assertEquals(2, queueMessages.size());
             assertEquals("test1", queueMessages.get(0).getContent());
             assertEquals("test2", queueMessages.get(1).getContent());
+        }
+    }
+
+    /// endregion
+
+    /// region poll
+
+    @Test
+    public void poll_EmptyCache_ReturnsEmptyOptional() {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            Optional<QueueMessage> read = simpleReader.poll();
+            assertFalse(read.isPresent());
+        }
+    }
+
+    @Test
+    public void poll_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test");
+            // make sure the cache is filled
+            Thread.sleep(100);
+            Optional<QueueMessage> read = simpleReader.poll();
+            assertTrue(read.isPresent());
+            assertEquals("test", read.get().getContent());
+        }
+    }
+
+    /// endregion
+
+    /// region batch poll
+
+    @Test
+    public void batchPoll_EmptyCache_ReturnsEmptyOptional() {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            List<QueueMessage> queueMessages = simpleReader.batchPoll(10);
+            assertEquals(0, queueMessages.size());
+        }
+    }
+
+    @Test
+    public void batchPoll_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test");
+            simpleWriter.offer("test2");
+            // make sure the cache is filled
+            Thread.sleep(100);
+            List<QueueMessage> queueMessages = simpleReader.batchPoll(10);
+            assertEquals(2, queueMessages.size());
+            assertEquals("test", queueMessages.get(0).getContent());
+            assertEquals("test2", queueMessages.get(1).getContent());
+        }
+    }
+
+    /// endregion
+
+    /// region ack
+
+    @Test
+    public void ack_UpdatePosition_PositionUpdated() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            long position = 100L;
+            simpleReader.ack(position);
+            assertEquals(position, simpleReader.getAckedReadPosition());
+        }
+    }
+
+    @Test
+    public void ack_ConcurrentAccess_ThreadSafety() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            int numThreads = 10;
+            CountDownLatch latch = new CountDownLatch(numThreads);
+            AtomicLong lastPosition = new AtomicLong(0);
+
+            for (int i = 0; i < numThreads; i++) {
+                long position = i;
+                new Thread(() -> {
+                    simpleReader.ack(position);
+                    lastPosition.set(position);
+                    latch.countDown();
+                }).start();
+            }
+
+            latch.await();
+            assertEquals(lastPosition.get(), simpleReader.getAckedReadPosition());
+        }
+    }
+
+    @Test
+    public void ack_NullMessages_NoChange() {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            simpleReader.ack(null);
+            assertEquals(-1, simpleReader.getAckedReadPosition());
+        }
+    }
+
+    @Test
+    public void ack_EmptyMessages_NoChange() {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            simpleReader.ack(Collections.emptyList());
+            assertEquals(-1, simpleReader.getAckedReadPosition());
+        }
+    }
+
+    @Test
+    public void ack_NonEmptyMessages_PositionUpdated() {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            List<QueueMessage> messages = new ArrayList<>();
+            messages.add(new QueueMessage(1L, "message1"));
+            messages.add(new QueueMessage(2L, "message2"));
+            messages.add(new QueueMessage(3L, "message3"));
+            simpleReader.ack(messages);
+            assertEquals(3L, simpleReader.getAckedReadPosition());
+        }
+    }
+
+    /// endreigon
+
+    /// region close
+
+    @Test
+    public void close_CloseReader_ReaderClosed() {
+        SimpleReader test;
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            test = simpleReader;
+
+        }
+        assertTrue(test.isClosed());
+    }
+
+    /// endregion
+
+    /// region read position
+
+    @Test
+    public void resumePosition() throws InterruptedException {
+        try (SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            for (int i = 0; i < 100; i++) {
+                String message = "msg" + i;
+                simpleWriter.offer(message);
+            }
+            // make sure data has been flushed.
+            Thread.sleep(100);
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                // make sure data has been read to cache.
+                Thread.sleep(100);
+                List<QueueMessage> queueMessages = simpleReader.batchTake(50);
+                assertEquals(50, queueMessages.size());
+                simpleReader.ack(queueMessages);
+                // make surce position has been flushed.
+                Thread.sleep(500);
+            }
+
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                Thread.sleep(100);
+                List<QueueMessage> queueMessages = simpleReader.batchTake(50);
+                assertEquals(50, queueMessages.size());
+                assertEquals("msg50", queueMessages.get(0).getContent());
+                simpleReader.ack(queueMessages);
+            }
         }
     }
 
