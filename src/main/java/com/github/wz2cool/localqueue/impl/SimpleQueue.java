@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IQueue;
+import com.github.wz2cool.localqueue.IReader;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
@@ -34,7 +35,7 @@ public class SimpleQueue implements IQueue, AutoCloseable {
     }
 
     @Override
-    public synchronized SimpleReader getReader(final String readerKey) {
+    public synchronized IReader getReader(final String readerKey) {
         SimpleReader reader = readerMap.get(readerKey);
         if (Objects.nonNull(reader)) {
             return reader;
@@ -45,6 +46,17 @@ public class SimpleQueue implements IQueue, AutoCloseable {
                 .setReaderKey(readerKey)
                 .build());
         readerMap.put(readerKey, reader);
+        return reader;
+    }
+
+    @Override
+    public synchronized IReader getReader(final SimpleReaderConfig config) {
+        SimpleReader reader = readerMap.get(config.getReaderKey());
+        if (Objects.nonNull(reader)) {
+            return reader;
+        }
+        reader = new SimpleReader(config);
+        readerMap.put(config.getReaderKey(), reader);
         return reader;
     }
 
