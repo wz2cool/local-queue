@@ -78,7 +78,6 @@ public class SimpleWriter implements IWriter, AutoCloseable {
             flushInternal(tempFlushMessages);
             tempFlushMessages.clear();
         } catch (InterruptedException ex) {
-            logger.error("[flushInternal] error", ex);
             Thread.currentThread().interrupt();
         }
     }

@@ -59,8 +59,8 @@ public class SimpleQueueTest {
                     String readerKey = "reader2";
                     IReader reader = queue.getReader(readerKey);
                     Thread.sleep(100);
-                    List<QueueMessage> queueMessages = reader.batchTake(10);
-                    assertEquals(10, queueMessages.size());
+                    List<QueueMessage> queueMessages = reader.batchTake(20);
+                    assertEquals(20, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
                     reader.ack(queueMessages);
                 } catch (InterruptedException e) {

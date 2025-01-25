@@ -141,7 +141,6 @@ public class SimpleReader implements IReader, AutoCloseable {
                     QueueMessage queueMessage = new QueueMessage(lastedReadIndex, message);
                     this.messageCache.put(queueMessage);
                 } catch (InterruptedException e) {
-                    logger.error("[readToCache] error", e);
                     Thread.currentThread().interrupt();
                 }
             }
