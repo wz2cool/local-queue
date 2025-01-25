@@ -77,9 +77,13 @@ public class SimpleWriterTest {
 
     @Test
     public void cleanUpOldFile_FileNewerThanKeepDate_FileNotDeleted() throws Exception {
-        File newFile = new File(dir, "20230102F.cq4");
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String string = dateTimeFormatter.format(LocalDate.now());
+        String fileName = string + "F.cq4";
+        File newFile = new File(dir, fileName);
         FileUtils.createParentDirectories(newFile);
-        newFile.createNewFile();
+        boolean createFileResult = newFile.createNewFile();
+        assertTrue(createFileResult);
         LocalDate keepDate = LocalDate.of(2023, 1, 1);
         try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
             invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, newFile, keepDate);
