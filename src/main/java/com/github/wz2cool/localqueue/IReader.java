@@ -4,16 +4,21 @@ import com.github.wz2cool.localqueue.model.message.QueueMessage;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 public interface IReader {
 
-    QueueMessage blockingRead() throws InterruptedException;
+    QueueMessage take() throws InterruptedException;
 
-    List<QueueMessage> blockingBatchRead(int maxBatchSize) throws InterruptedException;
+    List<QueueMessage> batchTake(int maxBatchSize) throws InterruptedException;
 
-    Optional<QueueMessage> read();
+    Optional<QueueMessage> take(long timeout, TimeUnit unit) throws InterruptedException;
 
-    List<QueueMessage> readBatch(int maxBatchSize);
+    List<QueueMessage> batchTake(int maxBatchSize, long timeout, TimeUnit unit) throws InterruptedException;
+
+    Optional<QueueMessage> poll();
+
+    List<QueueMessage> batchPoll(int maxBatchSize);
 
     void ack(long position);
 

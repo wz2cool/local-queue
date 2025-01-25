@@ -33,7 +33,6 @@ public class SimpleWriterTest {
 
     @AfterEach
     public void cleanUp() throws IOException, InterruptedException {
-        TimeUnit.MILLISECONDS.sleep(500);
         FileUtils.deleteDirectory(dir);
     }
 

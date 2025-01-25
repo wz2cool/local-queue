@@ -113,6 +113,19 @@ public class SimpleWriter implements IWriter, AutoCloseable {
         queue.close();
         flushExecutor.shutdown();
         scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+            if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                flushExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            flushExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
         appenderThreadLocal.remove();
         isClosed = true;
     }

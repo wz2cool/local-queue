@@ -49,12 +49,12 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
-    public synchronized QueueMessage blockingRead() throws InterruptedException {
+    public synchronized QueueMessage take() throws InterruptedException {
         return this.messageCache.take();
     }
 
     @Override
-    public synchronized List<QueueMessage> blockingBatchRead(int maxBatchSize) throws InterruptedException {
+    public synchronized List<QueueMessage> batchTake(int maxBatchSize) throws InterruptedException {
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         QueueMessage take = this.messageCache.take();
         result.add(take);
@@ -63,13 +63,30 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
-    public synchronized Optional<QueueMessage> read() {
+    public synchronized Optional<QueueMessage> take(long timeout, TimeUnit unit) throws InterruptedException {
+        QueueMessage message = this.messageCache.poll(timeout, unit);
+        return Optional.ofNullable(message);
+    }
+
+    @Override
+    public synchronized List<QueueMessage> batchTake(int maxBatchSize, long timeout, TimeUnit unit) throws InterruptedException {
+        List<QueueMessage> result = new ArrayList<>(maxBatchSize);
+        QueueMessage poll = this.messageCache.poll(timeout, unit);
+        if (Objects.nonNull(poll)) {
+            result.add(poll);
+            this.messageCache.drainTo(result, maxBatchSize - 1);
+        }
+        return result;
+    }
+
+    @Override
+    public synchronized Optional<QueueMessage> poll() {
         QueueMessage message = this.messageCache.poll();
         return Optional.ofNullable(message);
     }
 
     @Override
-    public synchronized List<QueueMessage> readBatch(int maxBatchSize) {
+    public synchronized List<QueueMessage> batchPoll(int maxBatchSize) {
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         this.messageCache.drainTo(result, maxBatchSize);
         return result;
@@ -108,6 +125,7 @@ public class SimpleReader implements IReader, AutoCloseable {
                 this.messageCache.put(queueMessage);
             } catch (InterruptedException e) {
                 logger.error("[readToCache] error", e);
+                Thread.currentThread().interrupt();
             }
         }
     }
@@ -145,12 +163,24 @@ public class SimpleReader implements IReader, AutoCloseable {
     /// endregion
 
     @Override
-    public void close()   {
+    public void close() {
         stopReadToCache();
         queue.close();
         positionStore.close();
         scheduler.shutdown();
         readExecutor.shutdown();
+        try {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+            if (!readExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                readExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            readExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         tailerThreadLocal.remove();
     }
 }
