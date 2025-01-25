@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -175,5 +176,66 @@ public class SimpleReaderTest {
             assertEquals("test2", messages.get(1).getContent());
         }
     }
+    /// endregion
+
+    /// region take with timeout
+    @Test
+    public void take_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test");
+            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            assertTrue(message.isPresent());
+            assertEquals("test", message.get().getContent());
+        }
+    }
+
+    @Test
+    public void take_MessageNotAvailable_ReturnsEmptyOptional() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            assertFalse(message.isPresent());
+        }
+    }
+
+    @Test
+    public void take_TimeoutExpires_ReturnsEmptyOptional() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Thread writeThread = new Thread(() -> {
+                try {
+                    Thread.sleep(200);
+                    simpleWriter.offer("test");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            writeThread.start();
+            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            writeThread.join();
+            assertFalse(message.isPresent());
+        }
+    }
+
+    @Test
+    public void take_WithinTimeout_ReturnsValue() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Thread writeThread = new Thread(() -> {
+                try {
+                    Thread.sleep(10);
+                    simpleWriter.offer("test");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            writeThread.start();
+            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            writeThread.join();
+            assertTrue(message.isPresent());
+        }
+    }
+
     /// endregion
 }
