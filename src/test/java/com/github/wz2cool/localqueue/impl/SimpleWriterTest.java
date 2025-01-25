@@ -37,14 +37,14 @@ public class SimpleWriterTest {
     }
 
     @Test
-    public void testWriteToLocal() throws InterruptedException {
+    public void testOfferToLocal() throws InterruptedException {
         try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            simpleWriter.write("init");
+            simpleWriter.offer("init");
             // make sure data write
             TimeUnit.MILLISECONDS.sleep(100);
             long writePosition1 = simpleWriter.getLastPosition();
-            simpleWriter.write("test1");
-            simpleWriter.write("test2");
+            simpleWriter.offer("test1");
+            simpleWriter.offer("test2");
             // make sure data write
             TimeUnit.MILLISECONDS.sleep(100);
             long writePosition2 = simpleWriter.getLastPosition();

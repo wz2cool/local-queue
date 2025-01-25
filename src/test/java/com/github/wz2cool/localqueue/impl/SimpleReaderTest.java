@@ -7,13 +7,11 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -66,7 +64,7 @@ public class SimpleReaderTest {
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
         try (SimpleReader simpleReader = new SimpleReader(readerConfig);
              SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.write("test");
+            simpleWriter.offer("test");
             QueueMessage message = simpleReader.take();
             assertEquals("test", message.getContent());
         }
@@ -86,7 +84,7 @@ public class SimpleReaderTest {
             });
             readThread.start();
             Thread.sleep(100); // blocking until message available
-            simpleWriter.write("test");
+            simpleWriter.offer("test");
             readThread.join();
         }
     }
@@ -98,6 +96,8 @@ public class SimpleReaderTest {
                 try {
                     simpleReader.take();
                 } catch (InterruptedException e) {
+                    assertThrowsExactly(InterruptedException.class, () -> {
+                    });
                     Thread.currentThread().interrupt();
                 }
             });
@@ -110,17 +110,70 @@ public class SimpleReaderTest {
 
     /// endregion
 
-    /// region blockingBatchRead
+    /// region batch take
 
     @Test
-    @Timeout(value = 1, unit = TimeUnit.SECONDS)
-    public void batchTake_EmptyCache_ReturnsEmptyList() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            List<QueueMessage> messages = simpleReader.batchTake(10);
-            assertTrue(messages.isEmpty());
+    public void batchTake_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
+        try (SimpleWriter simpleWriter = new SimpleWriter(writerConfig);
+             SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            Thread readThread = new Thread(() -> {
+                try {
+                    List<QueueMessage> messages = simpleReader.batchTake(1);
+                    assertEquals(1, messages.size());
+                    assertEquals("test", messages.get(0).getContent());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            readThread.start();
+            Thread.sleep(100); // 阻塞直到消息可用
+            simpleWriter.offer("test");
+            readThread.join();
         }
     }
 
+    @Test
+    public void batchTake_SingleMessage_ReturnsSingleMessage() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test");
+            // make sure the message is available
+            Thread.sleep(100);
+            List<QueueMessage> messages = simpleReader.batchTake(10);
+            assertEquals(1, messages.size());
+            assertEquals("test", messages.get(0).getContent());
+        }
+    }
 
+    @Test
+    public void batchTake_MultipleMessages_ReturnsMultipleMessages() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test1");
+            simpleWriter.offer("test2");
+            simpleWriter.offer("test3");
+            Thread.sleep(100);
+            List<QueueMessage> messages = simpleReader.batchTake(10);
+            assertEquals(3, messages.size());
+            assertEquals("test1", messages.get(0).getContent());
+            assertEquals("test2", messages.get(1).getContent());
+            assertEquals("test3", messages.get(2).getContent());
+        }
+    }
+
+    @Test
+    public void batchTake_MaxBatchSize_LimitedMessages() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test1");
+            simpleWriter.offer("test2");
+            simpleWriter.offer("test3");
+            Thread.sleep(100);
+            List<QueueMessage> messages = simpleReader.batchTake(2);
+            assertEquals(2, messages.size());
+            assertEquals("test1", messages.get(0).getContent());
+            assertEquals("test2", messages.get(1).getContent());
+        }
+    }
     /// endregion
 }

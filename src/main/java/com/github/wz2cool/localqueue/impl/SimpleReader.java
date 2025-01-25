@@ -122,9 +122,6 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     private void readToCache() {
-        if (isClosing) {
-            return;
-        }
         try {
             internalLock.lock();
             long pullInterval = config.getPullInterval();

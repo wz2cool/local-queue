@@ -89,7 +89,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
 
     @Override
-    public boolean write(String message) {
+    public boolean offer(String message) {
         return this.messageCache.offer(message);
     }
 
