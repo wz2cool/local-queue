@@ -1,5 +1,6 @@
 package com.github.wz2cool.localqueue.impl;
 
+import com.github.wz2cool.localqueue.IReader;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import org.apache.commons.io.FileUtils;
@@ -43,12 +44,12 @@ public class SimpleQueueTest {
             Thread reader1Thread = new Thread(() -> {
                 try {
                     String readerKey = "reader1";
-                    List<QueueMessage> queueMessages = queue.batchTake(readerKey, 1);
+                    IReader reader = queue.getReader(readerKey);
                     Thread.sleep(100);
-                    queueMessages.addAll(queue.batchTake(readerKey, 9));
+                    List<QueueMessage> queueMessages = reader.batchTake(10);
                     assertEquals(10, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
-                    queue.ack(readerKey, queueMessages);
+                    reader.ack(queueMessages);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -56,12 +57,12 @@ public class SimpleQueueTest {
             Thread reader2Thread = new Thread(() -> {
                 try {
                     String readerKey = "reader2";
-                    List<QueueMessage> queueMessages = queue.batchTake(readerKey, 1);
+                    IReader reader = queue.getReader(readerKey);
                     Thread.sleep(100);
-                    queueMessages.addAll(queue.batchTake(readerKey, 9));
+                    List<QueueMessage> queueMessages = reader.batchTake(10);
                     assertEquals(10, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
-                    queue.ack(readerKey, queueMessages);
+                    reader.ack(queueMessages);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
