@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * simple reader
@@ -32,6 +34,11 @@ public class SimpleReader implements IReader, AutoCloseable {
     private final LinkedBlockingQueue<QueueMessage> messageCache;
     private volatile long ackedReadPosition = -1;
     private volatile boolean isReadToCacheRunning = true;
+    private volatile boolean isClosing = false;
+    private volatile boolean isClosed = false;
+
+    private final Lock internalLock = new ReentrantLock();
+
 
     /**
      * constructor
@@ -106,27 +113,39 @@ public class SimpleReader implements IReader, AutoCloseable {
         this.ackedReadPosition = lastOne.getPosition();
     }
 
+    public boolean isClosed() {
+        return isClosed;
+    }
+
     private void stopReadToCache() {
         this.isReadToCacheRunning = false;
     }
 
     private void readToCache() {
-        ExcerptTailer tailer = tailerThreadLocal.get();
-        long pullInterval = config.getPullInterval();
-        while (this.isReadToCacheRunning) {
-            try {
-                String message = tailer.readText();
-                if (Objects.isNull(message)) {
-                    TimeUnit.MILLISECONDS.sleep(pullInterval);
-                    continue;
+        if (isClosing) {
+            return;
+        }
+        try {
+            internalLock.lock();
+            long pullInterval = config.getPullInterval();
+            while (this.isReadToCacheRunning && !isClosing) {
+                try {
+                    ExcerptTailer tailer = tailerThreadLocal.get();
+                    String message = tailer.readText();
+                    if (Objects.isNull(message)) {
+                        TimeUnit.MILLISECONDS.sleep(pullInterval);
+                        continue;
+                    }
+                    long lastedReadIndex = tailer.lastReadIndex();
+                    QueueMessage queueMessage = new QueueMessage(lastedReadIndex, message);
+                    this.messageCache.put(queueMessage);
+                } catch (InterruptedException e) {
+                    logger.error("[readToCache] error", e);
+                    Thread.currentThread().interrupt();
                 }
-                long lastedReadIndex = tailer.lastReadIndex();
-                QueueMessage queueMessage = new QueueMessage(lastedReadIndex, message);
-                this.messageCache.put(queueMessage);
-            } catch (InterruptedException e) {
-                logger.error("[readToCache] error", e);
-                Thread.currentThread().interrupt();
             }
+        } finally {
+            internalLock.unlock();
         }
     }
 
@@ -163,24 +182,31 @@ public class SimpleReader implements IReader, AutoCloseable {
     /// endregion
 
     @Override
-    public void close() {
-        stopReadToCache();
-        queue.close();
-        positionStore.close();
-        scheduler.shutdown();
-        readExecutor.shutdown();
+    public synchronized void close() {
+        isClosing = true;
+        this.internalLock.lock();
         try {
-            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+            stopReadToCache();
+            positionStore.close();
+            scheduler.shutdown();
+            readExecutor.shutdown();
+            try {
+                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow();
+                }
+                if (!readExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                    readExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
                 scheduler.shutdownNow();
-            }
-            if (!readExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                 readExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            readExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
+            tailerThreadLocal.remove();
+            queue.close();
+            isClosed = true;
+        } finally {
+            this.internalLock.unlock();
         }
-        tailerThreadLocal.remove();
     }
 }

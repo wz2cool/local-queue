@@ -60,7 +60,7 @@ public class SimpleReaderTest {
         }
     }
 
-    /// region blockingRead
+    /// region take
 
     @Test
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
@@ -69,6 +69,25 @@ public class SimpleReaderTest {
             simpleWriter.write("test");
             QueueMessage message = simpleReader.take();
             assertEquals("test", message.getContent());
+        }
+    }
+
+    @Test
+    public void take_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Thread readThread = new Thread(() -> {
+                try {
+                    QueueMessage message = simpleReader.take();
+                    assertEquals("test", message.getContent());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            readThread.start();
+            Thread.sleep(100); // blocking until message available
+            simpleWriter.write("test");
+            readThread.join();
         }
     }
 
@@ -85,6 +104,7 @@ public class SimpleReaderTest {
             readThread.start();
             readThread.interrupt();
             assertTrue(readThread.isInterrupted());
+            readThread.join();
         }
     }
 
