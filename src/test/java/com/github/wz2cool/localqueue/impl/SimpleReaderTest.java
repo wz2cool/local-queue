@@ -238,4 +238,74 @@ public class SimpleReaderTest {
     }
 
     /// endregion
+
+    /// region batch take with timeout
+
+    @Test
+    public void batchTake_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            simpleWriter.offer("test");
+            simpleWriter.offer("test2");
+            Thread.sleep(100);
+            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            assertEquals(2, queueMessages.size());
+            assertEquals("test", queueMessages.get(0).getContent());
+            assertEquals("test2", queueMessages.get(1).getContent());
+        }
+    }
+
+    @Test
+    public void batchTake_MessageNotAvailable_ReturnsEmptyOptional() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            assertEquals(0, queueMessages.size());
+        }
+    }
+
+    @Test
+    public void batchTake_TimeoutExpires_ReturnsEmptyOptional() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Thread writeThread = new Thread(() -> {
+                try {
+                    Thread.sleep(200);
+                    simpleWriter.offer("test1");
+                    simpleWriter.offer("test2");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            writeThread.start();
+            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            writeThread.join();
+            assertEquals(0, queueMessages.size());
+        }
+    }
+
+    @Test
+    public void batchTake_WithinTimeout_ReturnsValue() throws InterruptedException {
+        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
+             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+            Thread writeThread = new Thread(() -> {
+                try {
+                    Thread.sleep(10);
+                    simpleWriter.offer("test1");
+                    simpleWriter.offer("test2");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            writeThread.start();
+            Thread.sleep(100);
+            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            writeThread.join();
+            assertEquals(2, queueMessages.size());
+            assertEquals("test1", queueMessages.get(0).getContent());
+            assertEquals("test2", queueMessages.get(1).getContent());
+        }
+    }
+
+    /// endregion
 }

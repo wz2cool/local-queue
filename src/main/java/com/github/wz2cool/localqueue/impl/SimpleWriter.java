@@ -75,13 +75,26 @@ public class SimpleWriter implements IWriter, AutoCloseable {
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
             }
+            flushInternal(tempFlushMessages);
+            tempFlushMessages.clear();
+        } catch (InterruptedException ex) {
+            logger.error("[flushInternal] error", ex);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void flushInternal(List<String> messages) {
+        try {
+            internalLock.lock();
+            if (isClosing) {
+                return;
+            }
             ExcerptAppender appender = appenderThreadLocal.get();
-            for (String message : tempFlushMessages) {
+            for (String message : messages) {
                 appender.writeText(message);
             }
-            tempFlushMessages.clear();
-        } catch (Exception ex) {
-            logger.error("[flushInternal] error", ex);
+        } finally {
+            internalLock.unlock();
         }
     }
 
