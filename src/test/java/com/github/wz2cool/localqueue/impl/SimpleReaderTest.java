@@ -43,7 +43,7 @@ public class SimpleReaderTest {
                 .setReaderKey("test")
                 .setPullInterval(1)
                 .setReadCacheSize(100)
-                .setFlushPositionInterval(100)
+                .setFlushPositionInterval(10)
                 .build();
     }
 
@@ -492,6 +492,7 @@ public class SimpleReaderTest {
                 // *** 指向test1 的位置
                 boolean moveToResult = simpleReader.moveToPosition(messagePosition);
                 assertTrue(moveToResult);
+                Thread.sleep(100);
                 QueueMessage message = simpleReader.take();
                 assertEquals("test1", message.getContent());
                 simpleReader.ack(message);
@@ -537,6 +538,7 @@ public class SimpleReaderTest {
                 // *** 指向test1 的位置
                 boolean moveToResult = simpleReader.moveToPosition(9999999999999L);
                 assertFalse(moveToResult);
+                Thread.sleep(100);
                 QueueMessage message = simpleReader.take();
                 // 重置位置失败，接着test2 向下读
                 assertEquals("test3", message.getContent());
