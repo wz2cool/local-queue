@@ -121,7 +121,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
-    public synchronized boolean moveToPosition(final long position) {
+    public boolean moveToPosition(final long position) {
         stopReadToCache();
         try {
             internalLock.lock();
