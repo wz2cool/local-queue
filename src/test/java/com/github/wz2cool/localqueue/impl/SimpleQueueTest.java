@@ -3,6 +3,7 @@ package com.github.wz2cool.localqueue.impl;
 import com.github.wz2cool.localqueue.IReader;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import net.openhft.chronicle.queue.RollCycles;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -63,6 +65,12 @@ public class SimpleQueueTest {
                     List<QueueMessage> queueMessages = reader.batchTake(20);
                     assertEquals(20, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
+                    System.out.println("reader2:" + queueMessages.get(0).getPosition());
+
+                    long sequenceNumber = RollCycles.FAST_DAILY.toSequenceNumber(queueMessages.get(1).getPosition());
+                    System.out.println(sequenceNumber);
+                    Instant instant = Instant.ofEpochSecond(queueMessages.get(0).getPosition());
+                    System.out.println(instant);
                     reader.ack(queueMessages);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

@@ -389,7 +389,7 @@ public class SimpleReaderTest {
     @Test
     public void ack_NullMessages_NoChange() {
         try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            simpleReader.ack(null);
+            simpleReader.ack((QueueMessage) null);
             assertEquals(-1, simpleReader.getAckedReadPosition());
         }
     }
@@ -460,6 +460,94 @@ public class SimpleReaderTest {
             }
         }
     }
+
+    /// endregion
+
+    /// region moveToPosition
+
+    @Test
+    public void moveToPosition_valid_position() throws Exception {
+        // 写入一条消息到队列中
+        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+            writer.offer("test1");
+            writer.offer("test2");
+            writer.offer("test3");
+            Thread.sleep(100);
+            long messagePosition;
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message = simpleReader.take();
+                simpleReader.ack(message);
+                assertEquals("test1", message.getContent());
+                // make surce position has been flushed.
+                messagePosition = message.getPosition();
+                Thread.sleep(100);
+
+            }
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+                // *** 指向test1 的位置
+                boolean moveToResult = simpleReader.moveToPosition(messagePosition);
+                assertTrue(moveToResult);
+                QueueMessage message = simpleReader.take();
+                assertEquals("test1", message.getContent());
+                simpleReader.ack(message);
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+            // 在继续读后面 还是test2
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+        }
+
+    }
+
+    @Test
+    public void moveToPosition_invalid_position() throws Exception {
+        // 写入一条消息到队列中
+        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+            writer.offer("test1");
+            writer.offer("test2");
+            writer.offer("test3");
+            Thread.sleep(100);
+            long messagePosition;
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message = simpleReader.take();
+                simpleReader.ack(message);
+                assertEquals("test1", message.getContent());
+                // make surce position has been flushed.
+                messagePosition = message.getPosition();
+                Thread.sleep(100);
+
+            }
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+                // *** 指向test1 的位置
+                boolean moveToResult = simpleReader.moveToPosition(9999999999999L);
+                assertFalse(moveToResult);
+                QueueMessage message = simpleReader.take();
+                // 重置位置失败，接着test2 向下读
+                assertEquals("test3", message.getContent());
+                simpleReader.ack(message);
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+        }
+
+    }
+
 
     /// endregion
 }

@@ -7,10 +7,11 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -21,8 +22,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author frank
  */
 public class SimpleReader implements IReader, AutoCloseable {
-
-    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final SimpleReaderConfig config;
     private final PositionStore positionStore;
@@ -105,12 +104,41 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
+    public synchronized void ack(final QueueMessage message) {
+        if (Objects.isNull(message)) {
+            return;
+        }
+        this.ackedReadPosition = message.getPosition();
+    }
+
+    @Override
     public synchronized void ack(final List<QueueMessage> messages) {
         if (Objects.isNull(messages) || messages.isEmpty()) {
             return;
         }
         QueueMessage lastOne = messages.get(messages.size() - 1);
         this.ackedReadPosition = lastOne.getPosition();
+    }
+
+    @Override
+    public synchronized boolean moveToPosition(final long position) {
+        stopReadToCache();
+        try {
+            internalLock.lock();
+            return CompletableFuture.supplyAsync(() -> {
+                ExcerptTailer tailer = tailerThreadLocal.get();
+                boolean moveToResultInternal = tailer.moveToIndex(position);
+                if (moveToResultInternal) {
+                    messageCache.clear();
+                    this.ackedReadPosition = position;
+                }
+                return moveToResultInternal;
+            }, this.readExecutor).join();
+        } finally {
+            internalLock.unlock();
+            startReadToCache();
+            readExecutor.execute(this::readToCache);
+        }
     }
 
     public long getAckedReadPosition() {
@@ -123,6 +151,10 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     private void stopReadToCache() {
         this.isReadToCacheRunning = false;
+    }
+
+    private void startReadToCache() {
+        this.isReadToCacheRunning = true;
     }
 
     private void readToCache() {
