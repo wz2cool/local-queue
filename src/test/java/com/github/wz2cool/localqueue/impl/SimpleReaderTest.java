@@ -14,9 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -356,35 +354,6 @@ public class SimpleReaderTest {
 
     /// region ack
 
-    @Test
-    public void ack_UpdatePosition_PositionUpdated() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            long position = 100L;
-            simpleReader.ack(position);
-            assertEquals(position, simpleReader.getAckedReadPosition());
-        }
-    }
-
-    @Test
-    public void ack_ConcurrentAccess_ThreadSafety() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            int numThreads = 10;
-            CountDownLatch latch = new CountDownLatch(numThreads);
-            AtomicLong lastPosition = new AtomicLong(0);
-
-            for (int i = 0; i < numThreads; i++) {
-                long position = i;
-                new Thread(() -> {
-                    simpleReader.ack(position);
-                    lastPosition.set(position);
-                    latch.countDown();
-                }).start();
-            }
-
-            latch.await();
-            assertEquals(lastPosition.get(), simpleReader.getAckedReadPosition());
-        }
-    }
 
     @Test
     public void ack_NullMessages_NoChange() {
@@ -406,9 +375,9 @@ public class SimpleReaderTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(1L, "message1"));
-            messages.add(new QueueMessage(2L, "message2"));
-            messages.add(new QueueMessage(3L, "message3"));
+            messages.add(new QueueMessage(0, 1L, "message1"));
+            messages.add(new QueueMessage(0, 2L, "message2"));
+            messages.add(new QueueMessage(0, 3L, "message3"));
             simpleReader.ack(messages);
             assertEquals(3L, simpleReader.getAckedReadPosition());
         }

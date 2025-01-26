@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -35,6 +36,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     private volatile boolean isReadToCacheRunning = true;
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
+    private final AtomicInteger positionVersion = new AtomicInteger(0);
 
     private final Lock internalLock = new ReentrantLock();
 
@@ -99,15 +101,15 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
-    public synchronized void ack(final long position) {
-        this.ackedReadPosition = position;
-    }
-
-    @Override
     public synchronized void ack(final QueueMessage message) {
         if (Objects.isNull(message)) {
             return;
         }
+
+        if (message.getPositionVersion() != positionVersion.get()) {
+            return;
+        }
+
         this.ackedReadPosition = message.getPosition();
     }
 
@@ -117,6 +119,9 @@ public class SimpleReader implements IReader, AutoCloseable {
             return;
         }
         QueueMessage lastOne = messages.get(messages.size() - 1);
+        if (lastOne.getPositionVersion() != positionVersion.get()) {
+            return;
+        }
         this.ackedReadPosition = lastOne.getPosition();
     }
 
@@ -129,6 +134,7 @@ public class SimpleReader implements IReader, AutoCloseable {
                 ExcerptTailer tailer = tailerThreadLocal.get();
                 boolean moveToResultInternal = tailer.moveToIndex(position);
                 if (moveToResultInternal) {
+                    positionVersion.incrementAndGet();
                     messageCache.clear();
                     this.ackedReadPosition = position;
                 }
@@ -170,7 +176,7 @@ public class SimpleReader implements IReader, AutoCloseable {
                         continue;
                     }
                     long lastedReadIndex = tailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(lastedReadIndex, message);
+                    QueueMessage queueMessage = new QueueMessage(positionVersion.get(), lastedReadIndex, message);
                     this.messageCache.put(queueMessage);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

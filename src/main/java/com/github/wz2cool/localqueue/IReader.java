@@ -69,13 +69,6 @@ public interface IReader {
     /**
      * ack message.
      *
-     * @param position position
-     */
-    void ack(long position);
-
-    /**
-     * ack message.
-     *
      * @param message message
      */
     void ack(QueueMessage message);
