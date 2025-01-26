@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SuppressWarnings("all")
 public class SimpleQueueTest {
 
     private File dir;
