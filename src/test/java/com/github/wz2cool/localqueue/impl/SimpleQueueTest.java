@@ -44,43 +44,43 @@ public class SimpleQueueTest {
                 queue.offer("test" + i);
             }
             Thread.sleep(100);
-            Thread reader1Thread = new Thread(() -> {
+            Thread consumer1Thread = new Thread(() -> {
                 try {
-                    String consumerId = "reader1";
-                    IConsumer reader = queue.getConsumer(consumerId);
+                    String consumerId = "consumer1";
+                    IConsumer consumer = queue.getConsumer(consumerId);
                     Thread.sleep(100);
-                    List<QueueMessage> queueMessages = reader.batchTake(10);
+                    List<QueueMessage> queueMessages = consumer.batchTake(10);
                     assertEquals(10, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
-                    reader.ack(queueMessages);
+                    consumer.ack(queueMessages);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
-            Thread reader2Thread = new Thread(() -> {
+            Thread consumer2Thread = new Thread(() -> {
                 try {
-                    String consumerId = "reader2";
-                    IConsumer reader = queue.getConsumer(consumerId);
+                    String consumerId = "consumer2";
+                    IConsumer consumer = queue.getConsumer(consumerId);
                     Thread.sleep(100);
-                    List<QueueMessage> queueMessages = reader.batchTake(20);
+                    List<QueueMessage> queueMessages = consumer.batchTake(20);
                     assertEquals(20, queueMessages.size());
                     assertEquals("test0", queueMessages.get(0).getContent());
-                    System.out.println("reader2:" + queueMessages.get(0).getPosition());
+                    System.out.println("consumer2:" + queueMessages.get(0).getPosition());
 
                     long sequenceNumber = RollCycles.FAST_DAILY.toSequenceNumber(queueMessages.get(1).getPosition());
                     System.out.println(sequenceNumber);
                     Instant instant = Instant.ofEpochSecond(queueMessages.get(0).getPosition());
                     System.out.println(instant);
-                    reader.ack(queueMessages);
+                    consumer.ack(queueMessages);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
 
-            reader1Thread.start();
-            reader2Thread.start();
-            reader1Thread.join();
-            reader2Thread.join();
+            consumer1Thread.start();
+            consumer2Thread.start();
+            consumer1Thread.join();
+            consumer2Thread.join();
         }
     }
 }
