@@ -101,7 +101,11 @@ public class SimpleProducerTest {
         FileUtils.createParentDirectories(oldFile);
         boolean newFile = oldFile.createNewFile();
         assertTrue(newFile, "new file should be created");
-        assertTrue(oldFile.exists(), "new file should be created");
+
+        SimpleProducerConfig config = new SimpleProducerConfig.Builder()
+                .setDataDir(dir)
+                .setKeepDays(-1)
+                .build();
         try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
             invokePrivateMethod(simpleProducer, "cleanUpOldFiles", new Class[]{int.class}, -1);
         }
