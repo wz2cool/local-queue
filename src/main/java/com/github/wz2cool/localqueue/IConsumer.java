@@ -7,11 +7,11 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * reader interface
+ * consumer interface
  *
  * @author frank
  */
-public interface IReader {
+public interface IConsumer {
 
     /**
      * blocking thread until message available.

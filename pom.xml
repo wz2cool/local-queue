@@ -6,7 +6,7 @@
 
     <groupId>com.github.wz2cool</groupId>
     <artifactId>local-queue</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.6</version>
     <packaging>jar</packaging>
 
     <organization>
@@ -102,6 +102,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.3</version>
                 <configuration>
                     <source>1.8</source>
                     <target>1.8</target>
@@ -112,7 +113,7 @@
                 <artifactId>coveralls-maven-plugin</artifactId>
                 <version>4.3.0</version>
                 <configuration>
-                    <repoToken>DxOkGlczBj4k3KWc5Z1nO2x3TKTqNcXoO</repoToken>
+                    <repoToken>cPIJwZ8wHklLLhnXBfiVA9OXf5hLkXez0</repoToken>
                 </configuration>
             </plugin>
             <plugin>

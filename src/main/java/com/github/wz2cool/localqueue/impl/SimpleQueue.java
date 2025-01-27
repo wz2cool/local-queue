@@ -1,57 +1,64 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IQueue;
-import com.github.wz2cool.localqueue.IReader;
+import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
-import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
-import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * simple queue
+ *
+ * @author frank
+ */
 public class SimpleQueue implements IQueue, AutoCloseable {
 
     private final SimpleQueueConfig config;
-    private final SimpleWriter writer;
-    private final Map<String, SimpleReader> readerMap = new ConcurrentHashMap<>();
+    private final SimpleProducer simpleProducer;
+    private final Map<String, SimpleConsumer> consumerMap = new ConcurrentHashMap<>();
 
     public SimpleQueue(SimpleQueueConfig config) {
         this.config = config;
-        this.writer = getWriter();
+        this.simpleProducer = getProducer();
     }
 
     @Override
     public boolean offer(String message) {
-        return writer.offer(message);
+        return simpleProducer.offer(message);
     }
 
 
-    private SimpleWriter getWriter() {
-        return new SimpleWriter(new SimpleWriterConfig.Builder()
+    private SimpleProducer getProducer() {
+        return new SimpleProducer(new SimpleProducerConfig.Builder()
                 .setDataDir(config.getDataDir())
                 .setKeepDays(config.getKeepDays())
                 .build());
     }
 
     @Override
-    public synchronized IReader getReader(final String readerKey) {
-        SimpleReader reader = readerMap.get(readerKey);
-        if (Objects.nonNull(reader)) {
-            return reader;
+    public synchronized IConsumer getConsumer(final String consumerId) {
+        SimpleConsumer consumer = consumerMap.get(consumerId);
+        if (Objects.nonNull(consumer)) {
+            return consumer;
         }
 
-        reader = new SimpleReader(new SimpleReaderConfig.Builder()
+        consumer = new SimpleConsumer(new SimpleConsumerConfig.Builder()
                 .setDataDir(config.getDataDir())
-                .setReaderKey(readerKey)
+                .setConsumerId(consumerId)
                 .build());
-        readerMap.put(readerKey, reader);
-        return reader;
+        consumerMap.put(consumerId, consumer);
+        return consumer;
     }
 
     @Override
     public void close() {
-        writer.close();
-        readerMap.forEach((k, v) -> v.close());
+        simpleProducer.close();
+        for (Map.Entry<String, SimpleConsumer> entry : consumerMap.entrySet()) {
+            entry.getValue().close();
+        }
     }
 }

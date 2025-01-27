@@ -1,7 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.IReader;
-import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
+import com.github.wz2cool.localqueue.IConsumer;
+import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -18,18 +18,18 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * simple reader
+ * simple consumer
  *
  * @author frank
  */
-public class SimpleReader implements IReader, AutoCloseable {
+public class SimpleConsumer implements IConsumer, AutoCloseable {
 
-    private final SimpleReaderConfig config;
+    private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
 
     private final SingleChronicleQueue queue;
     private final ThreadLocal<ExcerptTailer> tailerThreadLocal;
-    private final ExecutorService readExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService readCacheExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
     private volatile long ackedReadPosition = -1;
@@ -44,16 +44,16 @@ public class SimpleReader implements IReader, AutoCloseable {
     /**
      * constructor
      *
-     * @param config the config of reader
+     * @param config the config of consumer
      */
-    public SimpleReader(final SimpleReaderConfig config) {
+    public SimpleConsumer(final SimpleConsumerConfig config) {
         this.config = config;
-        this.messageCache = new LinkedBlockingQueue<>(config.getReadCacheSize());
+        this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.tailerThreadLocal = ThreadLocal.withInitial(this::initExcerptTailer);
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
-        readExecutor.execute(this::readToCache);
+        startReadToCache();
     }
 
     @Override
@@ -132,18 +132,17 @@ public class SimpleReader implements IReader, AutoCloseable {
             internalLock.lock();
             return CompletableFuture.supplyAsync(() -> {
                 ExcerptTailer tailer = tailerThreadLocal.get();
-                boolean moveToResultInternal = tailer.moveToIndex(position);
-                if (moveToResultInternal) {
+                boolean moveToResult = tailer.moveToIndex(position);
+                if (moveToResult) {
                     positionVersion.incrementAndGet();
                     messageCache.clear();
                     this.ackedReadPosition = position;
                 }
-                return moveToResultInternal;
-            }, this.readExecutor).join();
+                return moveToResult;
+            }, this.readCacheExecutor).join();
         } finally {
             internalLock.unlock();
             startReadToCache();
-            readExecutor.execute(this::readToCache);
         }
     }
 
@@ -161,6 +160,7 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     private void startReadToCache() {
         this.isReadToCacheRunning = true;
+        readCacheExecutor.execute(this::readToCache);
     }
 
     private void readToCache() {
@@ -207,7 +207,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     private Optional<Long> getLastPosition() {
-        Long position = positionStore.get(config.getReaderKey());
+        Long position = positionStore.get(config.getConsumerId());
         if (position == null) {
             return Optional.empty();
         }
@@ -215,7 +215,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     private void setLastPosition(long position) {
-        positionStore.put(config.getReaderKey(), position);
+        positionStore.put(config.getConsumerId(), position);
     }
 
     /// endregion
@@ -224,28 +224,27 @@ public class SimpleReader implements IReader, AutoCloseable {
     public synchronized void close() {
         isClosing = true;
         this.internalLock.lock();
+        stopReadToCache();
+        this.internalLock.unlock();
+
+        positionStore.close();
+        scheduler.shutdown();
+        readCacheExecutor.shutdown();
         try {
-            stopReadToCache();
-            positionStore.close();
-            scheduler.shutdown();
-            readExecutor.shutdown();
-            try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-                if (!readExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                    readExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
-                readExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
             }
-            tailerThreadLocal.remove();
-            queue.close();
-            isClosed = true;
-        } finally {
-            this.internalLock.unlock();
+            if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                readCacheExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            readCacheExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
+        tailerThreadLocal.remove();
+        queue.close();
+        isClosed = true;
+
     }
 }

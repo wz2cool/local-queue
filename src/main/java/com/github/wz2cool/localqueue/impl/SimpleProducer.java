@@ -1,7 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.IWriter;
-import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.IProducer;
+import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
@@ -21,15 +21,15 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 写入器
+ * simple writer
  *
  * @author frank
  */
-public class SimpleWriter implements IWriter, AutoCloseable {
+public class SimpleProducer implements IProducer, AutoCloseable {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final SimpleWriterConfig config;
+    private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
     private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
@@ -41,7 +41,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
 
-    public SimpleWriter(final SimpleWriterConfig config) {
+    public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.appenderThreadLocal = ThreadLocal.withInitial(this.queue::createAppender);
@@ -52,9 +52,6 @@ public class SimpleWriter implements IWriter, AutoCloseable {
 
     /// region flush to file
     private void flush() {
-        if (isClosing) {
-            return;
-        }
         while (isFlushRunning && !isClosing) {
             flushInternal(config.getFlushBatchSize());
         }
@@ -70,7 +67,10 @@ public class SimpleWriter implements IWriter, AutoCloseable {
         try {
             if (tempFlushMessages.isEmpty()) {
                 // take 主要作用就是卡主线程
-                String firstItem = this.messageCache.take();
+                String firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
+                if (firstItem == null) {
+                    return;
+                }
                 this.tempFlushMessages.add(firstItem);
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
@@ -85,7 +85,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private void flushInternal(List<String> messages) {
         try {
             internalLock.lock();
-            if (isClosing) {
+            if (!isFlushRunning || isClosing) {
                 return;
             }
             ExcerptAppender appender = appenderThreadLocal.get();
@@ -117,9 +117,9 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     /// region close
 
     /**
-     * 是否已经关闭
+     * is closed.
      *
-     * @return true if the writer is closed, false otherwise.
+     * @return true if the Producer is closed, false otherwise.
      */
     public boolean isClosed() {
         return isClosed;
@@ -128,30 +128,27 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     @Override
     public void close() {
         isClosing = true;
+        internalLock.lock();
+        stopFlush();
+        internalLock.unlock();
+        queue.close();
+        flushExecutor.shutdown();
+        scheduler.shutdown();
         try {
-            internalLock.lock();
-            stopFlush();
-            queue.close();
-            flushExecutor.shutdown();
-            scheduler.shutdown();
-            try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-                if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                    flushExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
-                flushExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
             }
-
-            appenderThreadLocal.remove();
-            isClosed = true;
-        } finally {
-            internalLock.unlock();
+            if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                flushExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            flushExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
+
+        appenderThreadLocal.remove();
+        isClosed = true;
     }
 
     private void cleanUpOldFiles(int keepDays) {

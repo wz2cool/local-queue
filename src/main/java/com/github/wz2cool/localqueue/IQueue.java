@@ -21,6 +21,6 @@ public interface IQueue {
      * @param readerKey reader key
      * @return reader
      */
-    IReader getReader(String readerKey);
+    IConsumer getConsumer(String readerKey);
 
 }
