@@ -10,6 +10,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * simple queue
+ *
+ * @author frank
+ */
 public class SimpleQueue implements IQueue, AutoCloseable {
 
     private final SimpleQueueConfig config;

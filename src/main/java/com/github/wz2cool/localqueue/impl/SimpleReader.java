@@ -53,7 +53,7 @@ public class SimpleReader implements IReader, AutoCloseable {
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.tailerThreadLocal = ThreadLocal.withInitial(this::initExcerptTailer);
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
-        readExecutor.execute(this::readToCache);
+        startReadToCache();
     }
 
     @Override
@@ -132,18 +132,17 @@ public class SimpleReader implements IReader, AutoCloseable {
             internalLock.lock();
             return CompletableFuture.supplyAsync(() -> {
                 ExcerptTailer tailer = tailerThreadLocal.get();
-                boolean moveToResultInternal = tailer.moveToIndex(position);
-                if (moveToResultInternal) {
+                boolean moveToResult = tailer.moveToIndex(position);
+                if (moveToResult) {
                     positionVersion.incrementAndGet();
                     messageCache.clear();
                     this.ackedReadPosition = position;
                 }
-                return moveToResultInternal;
+                return moveToResult;
             }, this.readExecutor).join();
         } finally {
             internalLock.unlock();
             startReadToCache();
-            readExecutor.execute(this::readToCache);
         }
     }
 
@@ -161,6 +160,7 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     private void startReadToCache() {
         this.isReadToCacheRunning = true;
+        readExecutor.execute(this::readToCache);
     }
 
     private void readToCache() {

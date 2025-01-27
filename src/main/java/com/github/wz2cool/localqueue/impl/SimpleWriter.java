@@ -21,7 +21,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 写入器
+ * simple writer
  *
  * @author frank
  */
@@ -117,7 +117,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     /// region close
 
     /**
-     * 是否已经关闭
+     * is closed.
      *
      * @return true if the writer is closed, false otherwise.
      */
