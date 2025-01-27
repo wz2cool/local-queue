@@ -2,7 +2,6 @@ MyBatis Dynamic Query
 =====================================
 
 [![License](http://img.shields.io/:license-apache-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
- 
 [![Coverage Status](https://coveralls.io/repos/github/wz2cool/local-queue/badge.svg?branch=master)](https://coveralls.io/github/wz2cool/local-queue?branch=master)
 [![Maven central](https://maven-badges.herokuapp.com/maven-central/com.github.wz2cool/local-queue/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.wz2cool/local-queue)
 
