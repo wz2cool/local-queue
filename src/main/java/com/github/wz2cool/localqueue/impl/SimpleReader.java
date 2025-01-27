@@ -7,11 +7,13 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -21,8 +23,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author frank
  */
 public class SimpleReader implements IReader, AutoCloseable {
-
-    private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final SimpleReaderConfig config;
     private final PositionStore positionStore;
@@ -36,6 +36,7 @@ public class SimpleReader implements IReader, AutoCloseable {
     private volatile boolean isReadToCacheRunning = true;
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
+    private final AtomicInteger positionVersion = new AtomicInteger(0);
 
     private final Lock internalLock = new ReentrantLock();
 
@@ -100,8 +101,16 @@ public class SimpleReader implements IReader, AutoCloseable {
     }
 
     @Override
-    public synchronized void ack(final long position) {
-        this.ackedReadPosition = position;
+    public synchronized void ack(final QueueMessage message) {
+        if (Objects.isNull(message)) {
+            return;
+        }
+
+        if (message.getPositionVersion() != positionVersion.get()) {
+            return;
+        }
+
+        this.ackedReadPosition = message.getPosition();
     }
 
     @Override
@@ -110,7 +119,32 @@ public class SimpleReader implements IReader, AutoCloseable {
             return;
         }
         QueueMessage lastOne = messages.get(messages.size() - 1);
+        if (lastOne.getPositionVersion() != positionVersion.get()) {
+            return;
+        }
         this.ackedReadPosition = lastOne.getPosition();
+    }
+
+    @Override
+    public boolean moveToPosition(final long position) {
+        stopReadToCache();
+        try {
+            internalLock.lock();
+            return CompletableFuture.supplyAsync(() -> {
+                ExcerptTailer tailer = tailerThreadLocal.get();
+                boolean moveToResultInternal = tailer.moveToIndex(position);
+                if (moveToResultInternal) {
+                    positionVersion.incrementAndGet();
+                    messageCache.clear();
+                    this.ackedReadPosition = position;
+                }
+                return moveToResultInternal;
+            }, this.readExecutor).join();
+        } finally {
+            internalLock.unlock();
+            startReadToCache();
+            readExecutor.execute(this::readToCache);
+        }
     }
 
     public long getAckedReadPosition() {
@@ -123,6 +157,10 @@ public class SimpleReader implements IReader, AutoCloseable {
 
     private void stopReadToCache() {
         this.isReadToCacheRunning = false;
+    }
+
+    private void startReadToCache() {
+        this.isReadToCacheRunning = true;
     }
 
     private void readToCache() {
@@ -138,7 +176,7 @@ public class SimpleReader implements IReader, AutoCloseable {
                         continue;
                     }
                     long lastedReadIndex = tailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(lastedReadIndex, message);
+                    QueueMessage queueMessage = new QueueMessage(positionVersion.get(), lastedReadIndex, message);
                     this.messageCache.put(queueMessage);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

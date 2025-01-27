@@ -3,25 +3,25 @@ package com.github.wz2cool.localqueue;
 import java.io.Serializable;
 
 /**
- * 存储
+ * store interface
  *
- * @param <T> 泛型
+ * @param <T> valueType
  */
 public interface IStore<T extends Serializable> {
 
     /**
-     * 放置
+     * put key value
      *
-     * @param key   键
-     * @param value 值
+     * @param key   key
+     * @param value value
      */
     void put(String key, T value);
 
     /**
-     * 获取
+     * get value by key
      *
-     * @param key 键
-     * @return 值
+     * @param key key
+     * @return value
      */
     T get(String key);
 }

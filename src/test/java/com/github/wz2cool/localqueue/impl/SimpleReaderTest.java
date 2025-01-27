@@ -14,9 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,7 +41,7 @@ public class SimpleReaderTest {
                 .setReaderKey("test")
                 .setPullInterval(1)
                 .setReadCacheSize(100)
-                .setFlushPositionInterval(100)
+                .setFlushPositionInterval(10)
                 .build();
     }
 
@@ -356,40 +354,11 @@ public class SimpleReaderTest {
 
     /// region ack
 
-    @Test
-    public void ack_UpdatePosition_PositionUpdated() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            long position = 100L;
-            simpleReader.ack(position);
-            assertEquals(position, simpleReader.getAckedReadPosition());
-        }
-    }
-
-    @Test
-    public void ack_ConcurrentAccess_ThreadSafety() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            int numThreads = 10;
-            CountDownLatch latch = new CountDownLatch(numThreads);
-            AtomicLong lastPosition = new AtomicLong(0);
-
-            for (int i = 0; i < numThreads; i++) {
-                long position = i;
-                new Thread(() -> {
-                    simpleReader.ack(position);
-                    lastPosition.set(position);
-                    latch.countDown();
-                }).start();
-            }
-
-            latch.await();
-            assertEquals(lastPosition.get(), simpleReader.getAckedReadPosition());
-        }
-    }
 
     @Test
     public void ack_NullMessages_NoChange() {
         try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            simpleReader.ack(null);
+            simpleReader.ack((QueueMessage) null);
             assertEquals(-1, simpleReader.getAckedReadPosition());
         }
     }
@@ -406,9 +375,9 @@ public class SimpleReaderTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(1L, "message1"));
-            messages.add(new QueueMessage(2L, "message2"));
-            messages.add(new QueueMessage(3L, "message3"));
+            messages.add(new QueueMessage(0, 1L, "message1"));
+            messages.add(new QueueMessage(0, 2L, "message2"));
+            messages.add(new QueueMessage(0, 3L, "message3"));
             simpleReader.ack(messages);
             assertEquals(3L, simpleReader.getAckedReadPosition());
         }
@@ -460,6 +429,96 @@ public class SimpleReaderTest {
             }
         }
     }
+
+    /// endregion
+
+    /// region moveToPosition
+
+    @Test
+    public void moveToPosition_valid_position() throws Exception {
+        // 写入一条消息到队列中
+        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+            writer.offer("test1");
+            writer.offer("test2");
+            writer.offer("test3");
+            Thread.sleep(100);
+            long messagePosition;
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message = simpleReader.take();
+                simpleReader.ack(message);
+                assertEquals("test1", message.getContent());
+                // make surce position has been flushed.
+                messagePosition = message.getPosition();
+                Thread.sleep(100);
+
+            }
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+                // *** 指向test1 的位置
+                boolean moveToResult = simpleReader.moveToPosition(messagePosition);
+                assertTrue(moveToResult);
+                Thread.sleep(100);
+                QueueMessage message = simpleReader.take();
+                assertEquals("test1", message.getContent());
+                simpleReader.ack(message);
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+            // 在继续读后面 还是test2
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+        }
+
+    }
+
+    @Test
+    public void moveToPosition_invalid_position() throws Exception {
+        // 写入一条消息到队列中
+        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+            writer.offer("test1");
+            writer.offer("test2");
+            writer.offer("test3");
+            Thread.sleep(100);
+            long messagePosition;
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message = simpleReader.take();
+                simpleReader.ack(message);
+                assertEquals("test1", message.getContent());
+                // make surce position has been flushed.
+                messagePosition = message.getPosition();
+                Thread.sleep(100);
+
+            }
+            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+                QueueMessage message2 = simpleReader.take();
+                simpleReader.ack(message2);
+                assertEquals("test2", message2.getContent());
+                // make surce position has been flushed.
+                Thread.sleep(100);
+                // *** 指向test1 的位置
+                boolean moveToResult = simpleReader.moveToPosition(9999999999999L);
+                assertFalse(moveToResult);
+                Thread.sleep(100);
+                QueueMessage message = simpleReader.take();
+                // 重置位置失败，接着test2 向下读
+                assertEquals("test3", message.getContent());
+                simpleReader.ack(message);
+                // make surce position has been flushed.
+                Thread.sleep(100);
+            }
+        }
+
+    }
+
 
     /// endregion
 }

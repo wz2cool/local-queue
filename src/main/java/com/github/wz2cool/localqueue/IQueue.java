@@ -1,11 +1,26 @@
 package com.github.wz2cool.localqueue;
 
-import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
-
+/**
+ * queue interface
+ *
+ * @author Frank
+ */
 public interface IQueue {
+
+    /**
+     * offer message to queue
+     *
+     * @param message message
+     * @return true if success
+     */
     boolean offer(String message);
 
+    /**
+     * get reader
+     *
+     * @param readerKey reader key
+     * @return reader
+     */
     IReader getReader(String readerKey);
 
-    IReader getReader(SimpleReaderConfig config);
 }

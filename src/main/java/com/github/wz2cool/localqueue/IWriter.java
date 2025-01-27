@@ -1,12 +1,17 @@
 package com.github.wz2cool.localqueue;
 
+/**
+ * writer interface.
+ *
+ * @author Frank
+ */
 public interface IWriter {
 
     /**
-     * 写入
+     * offer message to queue.
      *
-     * @param message 消息
-     * @return 是否成功，false 一般是队列满了
+     * @param message message
+     * @return true if success
      */
     boolean offer(String message);
 }

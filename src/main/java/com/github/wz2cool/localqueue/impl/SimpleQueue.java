@@ -50,17 +50,6 @@ public class SimpleQueue implements IQueue, AutoCloseable {
     }
 
     @Override
-    public synchronized IReader getReader(final SimpleReaderConfig config) {
-        SimpleReader reader = readerMap.get(config.getReaderKey());
-        if (Objects.nonNull(reader)) {
-            return reader;
-        }
-        reader = new SimpleReader(config);
-        readerMap.put(config.getReaderKey(), reader);
-        return reader;
-    }
-
-    @Override
     public void close() {
         writer.close();
         readerMap.forEach((k, v) -> v.close());
