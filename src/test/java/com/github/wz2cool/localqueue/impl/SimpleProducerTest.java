@@ -99,7 +99,8 @@ public class SimpleProducerTest {
     public void cleanUpOldFiles_KeepDaysMinusOne_NoFilesDeleted() throws Exception {
         File oldFile = new File(dir, "20230101F.cq4");
         FileUtils.createParentDirectories(oldFile);
-        oldFile.createNewFile();
+        boolean newFile = oldFile.createNewFile();
+        assertTrue(newFile, "new file should be created");
         try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
             invokePrivateMethod(simpleProducer, "cleanUpOldFiles", new Class[]{int.class}, -1);
         }
