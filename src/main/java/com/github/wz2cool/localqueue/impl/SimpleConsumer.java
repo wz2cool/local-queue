@@ -224,28 +224,27 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     public synchronized void close() {
         isClosing = true;
         this.internalLock.lock();
+        stopReadToCache();
+        this.internalLock.unlock();
+
+        positionStore.close();
+        scheduler.shutdown();
+        readCacheExecutor.shutdown();
         try {
-            stopReadToCache();
-            positionStore.close();
-            scheduler.shutdown();
-            readCacheExecutor.shutdown();
-            try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-                if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                    readCacheExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
-                readCacheExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
             }
-            tailerThreadLocal.remove();
-            queue.close();
-            isClosed = true;
-        } finally {
-            this.internalLock.unlock();
+            if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                readCacheExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            readCacheExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
+        tailerThreadLocal.remove();
+        queue.close();
+        isClosed = true;
+
     }
 }

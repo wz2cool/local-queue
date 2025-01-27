@@ -7,9 +7,9 @@ package com.github.wz2cool.localqueue.model.message;
  */
 public class QueueMessage {
 
-    private int positionVersion;
-    private Long position;
-    private String content;
+    private final int positionVersion;
+    private final Long position;
+    private final String content;
 
     /**
      * constructor
@@ -27,23 +27,11 @@ public class QueueMessage {
         return position;
     }
 
-    public void setPosition(Long position) {
-        this.position = position;
-    }
-
     public String getContent() {
         return content;
     }
 
-    public void setContent(String content) {
-        this.content = content;
-    }
-
     public int getPositionVersion() {
         return positionVersion;
-    }
-
-    public void setPositionVersion(int positionVersion) {
-        this.positionVersion = positionVersion;
     }
 }

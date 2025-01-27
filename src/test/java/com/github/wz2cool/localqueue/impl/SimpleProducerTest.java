@@ -28,6 +28,7 @@ public class SimpleProducerTest {
         config = new SimpleProducerConfig.Builder()
                 .setDataDir(dir)
                 .setKeepDays(1)
+                .setFlushBatchSize(100)
                 .build();
     }
 
