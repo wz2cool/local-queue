@@ -3,26 +3,26 @@ package com.github.wz2cool.localqueue.model.config;
 import java.io.File;
 import java.util.Objects;
 
-public class SimpleReaderConfig {
+public class SimpleConsumerConfig {
 
     private final File dataDir;
 
     private final File positionFile;
 
-    private final String readerKey;
+    private final String consumerId;
 
     private final long pullInterval;
 
-    private final int readCacheSize;
+    private final int cacheSize;
 
     private final long flushPositionInterval;
 
-    private SimpleReaderConfig(final Builder builder) {
+    private SimpleConsumerConfig(final Builder builder) {
         this.dataDir = builder.dataDir;
         this.positionFile = builder.positionFile;
-        this.readerKey = builder.readerKey;
+        this.consumerId = builder.consumerId;
         this.pullInterval = builder.pullInterval;
-        this.readCacheSize = builder.readCacheSize;
+        this.cacheSize = builder.cacheSize;
         this.flushPositionInterval = builder.flushPositionInterval;
     }
 
@@ -34,16 +34,16 @@ public class SimpleReaderConfig {
         return positionFile;
     }
 
-    public String getReaderKey() {
-        return readerKey;
+    public String getConsumerId() {
+        return consumerId;
     }
 
     public long getPullInterval() {
         return pullInterval;
     }
 
-    public int getReadCacheSize() {
-        return readCacheSize;
+    public int getCacheSize() {
+        return cacheSize;
     }
 
     public long getFlushPositionInterval() {
@@ -56,11 +56,11 @@ public class SimpleReaderConfig {
 
         private File positionFile;
 
-        private String readerKey;
+        private String consumerId;
 
         private long pullInterval = 500;
 
-        private int readCacheSize = 10000;
+        private int cacheSize = 10000;
 
         private long flushPositionInterval = 100;
 
@@ -74,8 +74,8 @@ public class SimpleReaderConfig {
             return this;
         }
 
-        public Builder setReaderKey(String readerKey) {
-            this.readerKey = readerKey;
+        public Builder setConsumerId(String consumerId) {
+            this.consumerId = consumerId;
             return this;
         }
 
@@ -84,8 +84,8 @@ public class SimpleReaderConfig {
             return this;
         }
 
-        public Builder setReadCacheSize(int readCacheSize) {
-            this.readCacheSize = readCacheSize;
+        public Builder setCacheSize(int cacheSize) {
+            this.cacheSize = cacheSize;
             return this;
         }
 
@@ -94,18 +94,18 @@ public class SimpleReaderConfig {
             return this;
         }
 
-        public SimpleReaderConfig build() {
+        public SimpleConsumerConfig build() {
             if (Objects.isNull(dataDir)) {
                 throw new IllegalArgumentException("dataDir cannot be null");
             }
 
-            if (Objects.isNull(readerKey) || readerKey.isEmpty()) {
+            if (Objects.isNull(consumerId) || consumerId.isEmpty()) {
                 // 如果没有就给默认
-                throw new IllegalArgumentException("readerKey cannot be null or empty");
+                throw new IllegalArgumentException("consumerId cannot be null or empty");
             }
 
-            if (readCacheSize <= 0) {
-                throw new IllegalArgumentException("readCacheCount should > 0");
+            if (cacheSize <= 0) {
+                throw new IllegalArgumentException("cacheSize should > 0");
             }
 
             if (flushPositionInterval <= 0) {
@@ -117,7 +117,7 @@ public class SimpleReaderConfig {
                 this.positionFile = new File(dataDir, "position.dat");
             }
 
-            return new SimpleReaderConfig(this);
+            return new SimpleConsumerConfig(this);
         }
 
     }

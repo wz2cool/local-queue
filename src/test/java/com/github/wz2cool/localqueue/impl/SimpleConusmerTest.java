@@ -1,7 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.model.config.SimpleReaderConfig;
-import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -19,28 +19,29 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings("all")
-public class SimpleReaderTest {
+public class SimpleConusmerTest {
 
     private File dir;
-    private SimpleWriterConfig writerConfig;
-    private SimpleReaderConfig readerConfig;
+    private SimpleProducerConfig producerConfig;
+    private SimpleConsumerConfig consumerConfig;
+    private boolean test;
 
 
     @BeforeEach
     public void setUp() throws IOException {
         dir = new File("./test");
         FileUtils.deleteDirectory(dir);
-        writerConfig = new SimpleWriterConfig.Builder()
+        producerConfig = new SimpleProducerConfig.Builder()
                 .setDataDir(dir)
                 .setKeepDays(1)
                 .build();
 
-        readerConfig = new SimpleReaderConfig.Builder()
+        consumerConfig = new SimpleConsumerConfig.Builder()
                 .setDataDir(dir)
                 .setPositionFile(new File("./test/position.txt"))
-                .setReaderKey("test")
+                .setConsumerId("test")
                 .setPullInterval(1)
-                .setReadCacheSize(100)
+                .setCacheSize(100)
                 .setFlushPositionInterval(10)
                 .build();
     }
@@ -54,49 +55,49 @@ public class SimpleReaderTest {
 
     @Test
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
-            QueueMessage message = simpleReader.take();
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
+            QueueMessage message = simpleConsumer.take();
             assertEquals("test", message.getContent());
         }
     }
 
     @Test
     public void take_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            Thread readThread = new Thread(() -> {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            Thread consumeThread = new Thread(() -> {
                 try {
-                    QueueMessage message = simpleReader.take();
+                    QueueMessage message = simpleConsumer.take();
                     assertEquals("test", message.getContent());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
-            readThread.start();
+            consumeThread.start();
+            simpleProducer.offer("test");
             Thread.sleep(100); // blocking until message available
-            simpleWriter.offer("test");
-            readThread.join();
+            consumeThread.join();
         }
     }
 
     @Test
     public void take_Interrupted_ThrowsInterruptedException() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            Thread readThread = new Thread(() -> {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Thread consumeThread = new Thread(() -> {
                 try {
-                    simpleReader.take();
+                    simpleConsumer.take();
                 } catch (InterruptedException e) {
                     assertThrowsExactly(InterruptedException.class, () -> {
                     });
                     Thread.currentThread().interrupt();
                 }
             });
-            readThread.start();
-            readThread.interrupt();
-            assertTrue(readThread.isInterrupted());
-            readThread.join();
+            consumeThread.start();
+            consumeThread.interrupt();
+            assertTrue(consumeThread.isInterrupted());
+            consumeThread.join();
         }
     }
 
@@ -106,32 +107,32 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
-        try (SimpleWriter simpleWriter = new SimpleWriter(writerConfig);
-             SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            Thread readThread = new Thread(() -> {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Thread consumeThread = new Thread(() -> {
                 try {
-                    List<QueueMessage> messages = simpleReader.batchTake(1);
+                    List<QueueMessage> messages = simpleConsumer.batchTake(1);
                     assertEquals(1, messages.size());
                     assertEquals("test", messages.get(0).getContent());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
-            readThread.start();
+            consumeThread.start();
             Thread.sleep(100); // 阻塞直到消息可用
-            simpleWriter.offer("test");
-            readThread.join();
+            simpleProducer.offer("test");
+            consumeThread.join();
         }
     }
 
     @Test
     public void batchTake_SingleMessage_ReturnsSingleMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
             // make sure the message is available
             Thread.sleep(100);
-            List<QueueMessage> messages = simpleReader.batchTake(10);
+            List<QueueMessage> messages = simpleConsumer.batchTake(10);
             assertEquals(1, messages.size());
             assertEquals("test", messages.get(0).getContent());
         }
@@ -139,13 +140,13 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_MultipleMessages_ReturnsMultipleMessages() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test1");
-            simpleWriter.offer("test2");
-            simpleWriter.offer("test3");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test1");
+            simpleProducer.offer("test2");
+            simpleProducer.offer("test3");
             Thread.sleep(100);
-            List<QueueMessage> messages = simpleReader.batchTake(10);
+            List<QueueMessage> messages = simpleConsumer.batchTake(10);
             assertEquals(3, messages.size());
             assertEquals("test1", messages.get(0).getContent());
             assertEquals("test2", messages.get(1).getContent());
@@ -155,13 +156,13 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_MaxBatchSize_LimitedMessages() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test1");
-            simpleWriter.offer("test2");
-            simpleWriter.offer("test3");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test1");
+            simpleProducer.offer("test2");
+            simpleProducer.offer("test3");
             Thread.sleep(100);
-            List<QueueMessage> messages = simpleReader.batchTake(2);
+            List<QueueMessage> messages = simpleConsumer.batchTake(2);
             assertEquals(2, messages.size());
             assertEquals("test1", messages.get(0).getContent());
             assertEquals("test2", messages.get(1).getContent());
@@ -172,10 +173,10 @@ public class SimpleReaderTest {
     /// region take with timeout
     @Test
     public void take_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
-            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
+            Optional<QueueMessage> message = simpleConsumer.take(100, TimeUnit.MILLISECONDS);
             assertTrue(message.isPresent());
             assertEquals("test", message.get().getContent());
         }
@@ -183,27 +184,27 @@ public class SimpleReaderTest {
 
     @Test
     public void take_MessageNotAvailable_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            Optional<QueueMessage> message = simpleConsumer.take(100, TimeUnit.MILLISECONDS);
             assertFalse(message.isPresent());
         }
     }
 
     @Test
     public void take_TimeoutExpires_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
             Thread writeThread = new Thread(() -> {
                 try {
                     Thread.sleep(200);
-                    simpleWriter.offer("test");
+                    simpleProducer.offer("test");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
             writeThread.start();
-            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            Optional<QueueMessage> message = simpleConsumer.take(100, TimeUnit.MILLISECONDS);
             writeThread.join();
             assertFalse(message.isPresent());
         }
@@ -211,18 +212,18 @@ public class SimpleReaderTest {
 
     @Test
     public void take_WithinTimeout_ReturnsValue() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
             Thread writeThread = new Thread(() -> {
                 try {
                     Thread.sleep(10);
-                    simpleWriter.offer("test");
+                    simpleProducer.offer("test");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
             writeThread.start();
-            Optional<QueueMessage> message = simpleReader.take(100, TimeUnit.MILLISECONDS);
+            Optional<QueueMessage> message = simpleConsumer.take(100, TimeUnit.MILLISECONDS);
             writeThread.join();
             assertTrue(message.isPresent());
         }
@@ -234,12 +235,12 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
-            simpleWriter.offer("test2");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
+            simpleProducer.offer("test2");
             Thread.sleep(100);
-            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            List<QueueMessage> queueMessages = simpleConsumer.batchTake(10, 100, TimeUnit.MILLISECONDS);
             assertEquals(2, queueMessages.size());
             assertEquals("test", queueMessages.get(0).getContent());
             assertEquals("test2", queueMessages.get(1).getContent());
@@ -248,28 +249,28 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_MessageNotAvailable_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            List<QueueMessage> queueMessages = simpleConsumer.batchTake(10, 100, TimeUnit.MILLISECONDS);
             assertEquals(0, queueMessages.size());
         }
     }
 
     @Test
     public void batchTake_TimeoutExpires_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
             Thread writeThread = new Thread(() -> {
                 try {
                     Thread.sleep(200);
-                    simpleWriter.offer("test1");
-                    simpleWriter.offer("test2");
+                    simpleProducer.offer("test1");
+                    simpleProducer.offer("test2");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
             writeThread.start();
-            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            List<QueueMessage> queueMessages = simpleConsumer.batchTake(10, 100, TimeUnit.MILLISECONDS);
             writeThread.join();
             assertEquals(0, queueMessages.size());
         }
@@ -277,20 +278,20 @@ public class SimpleReaderTest {
 
     @Test
     public void batchTake_WithinTimeout_ReturnsValue() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
             Thread writeThread = new Thread(() -> {
                 try {
                     Thread.sleep(10);
-                    simpleWriter.offer("test1");
-                    simpleWriter.offer("test2");
+                    simpleProducer.offer("test1");
+                    simpleProducer.offer("test2");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
             writeThread.start();
             Thread.sleep(100);
-            List<QueueMessage> queueMessages = simpleReader.batchTake(10, 100, TimeUnit.MILLISECONDS);
+            List<QueueMessage> queueMessages = simpleConsumer.batchTake(10, 100, TimeUnit.MILLISECONDS);
             writeThread.join();
             assertEquals(2, queueMessages.size());
             assertEquals("test1", queueMessages.get(0).getContent());
@@ -304,20 +305,20 @@ public class SimpleReaderTest {
 
     @Test
     public void poll_EmptyCache_ReturnsEmptyOptional() {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            Optional<QueueMessage> read = simpleReader.poll();
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Optional<QueueMessage> read = simpleConsumer.poll();
             assertFalse(read.isPresent());
         }
     }
 
     @Test
     public void poll_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
             // make sure the cache is filled
             Thread.sleep(100);
-            Optional<QueueMessage> read = simpleReader.poll();
+            Optional<QueueMessage> read = simpleConsumer.poll();
             assertTrue(read.isPresent());
             assertEquals("test", read.get().getContent());
         }
@@ -329,21 +330,21 @@ public class SimpleReaderTest {
 
     @Test
     public void batchPoll_EmptyCache_ReturnsEmptyOptional() {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            List<QueueMessage> queueMessages = simpleReader.batchPoll(10);
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            List<QueueMessage> queueMessages = simpleConsumer.batchPoll(10);
             assertEquals(0, queueMessages.size());
         }
     }
 
     @Test
     public void batchPoll_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig);
-             SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
-            simpleWriter.offer("test");
-            simpleWriter.offer("test2");
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            simpleProducer.offer("test");
+            simpleProducer.offer("test2");
             // make sure the cache is filled
             Thread.sleep(100);
-            List<QueueMessage> queueMessages = simpleReader.batchPoll(10);
+            List<QueueMessage> queueMessages = simpleConsumer.batchPoll(10);
             assertEquals(2, queueMessages.size());
             assertEquals("test", queueMessages.get(0).getContent());
             assertEquals("test2", queueMessages.get(1).getContent());
@@ -357,29 +358,29 @@ public class SimpleReaderTest {
 
     @Test
     public void ack_NullMessages_NoChange() {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            simpleReader.ack((QueueMessage) null);
-            assertEquals(-1, simpleReader.getAckedReadPosition());
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleConsumer.ack((QueueMessage) null);
+            assertEquals(-1, simpleConsumer.getAckedReadPosition());
         }
     }
 
     @Test
     public void ack_EmptyMessages_NoChange() {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            simpleReader.ack(Collections.emptyList());
-            assertEquals(-1, simpleReader.getAckedReadPosition());
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleConsumer.ack(Collections.emptyList());
+            assertEquals(-1, simpleConsumer.getAckedReadPosition());
         }
     }
 
     @Test
     public void ack_NonEmptyMessages_PositionUpdated() {
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
             messages.add(new QueueMessage(0, 1L, "message1"));
             messages.add(new QueueMessage(0, 2L, "message2"));
             messages.add(new QueueMessage(0, 3L, "message3"));
-            simpleReader.ack(messages);
-            assertEquals(3L, simpleReader.getAckedReadPosition());
+            simpleConsumer.ack(messages);
+            assertEquals(3L, simpleConsumer.getAckedReadPosition());
         }
     }
 
@@ -388,10 +389,10 @@ public class SimpleReaderTest {
     /// region close
 
     @Test
-    public void close_CloseReader_ReaderClosed() {
-        SimpleReader test;
-        try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-            test = simpleReader;
+    public void close_CloseConsumer_ConsumerClosed() {
+        SimpleConsumer test;
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            test = simpleConsumer;
 
         }
         assertTrue(test.isClosed());
@@ -403,29 +404,29 @@ public class SimpleReaderTest {
 
     @Test
     public void resumePosition() throws InterruptedException {
-        try (SimpleWriter simpleWriter = new SimpleWriter(writerConfig)) {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
             for (int i = 0; i < 100; i++) {
                 String message = "msg" + i;
-                simpleWriter.offer(message);
+                simpleProducer.offer(message);
             }
             // make sure data has been flushed.
             Thread.sleep(100);
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
                 // make sure data has been read to cache.
                 Thread.sleep(100);
-                List<QueueMessage> queueMessages = simpleReader.batchTake(50);
+                List<QueueMessage> queueMessages = simpleConsumer.batchTake(50);
                 assertEquals(50, queueMessages.size());
-                simpleReader.ack(queueMessages);
+                simpleConsumer.ack(queueMessages);
                 // make surce position has been flushed.
                 Thread.sleep(500);
             }
 
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
                 Thread.sleep(100);
-                List<QueueMessage> queueMessages = simpleReader.batchTake(50);
+                List<QueueMessage> queueMessages = simpleConsumer.batchTake(50);
                 assertEquals(50, queueMessages.size());
                 assertEquals("msg50", queueMessages.get(0).getContent());
-                simpleReader.ack(queueMessages);
+                simpleConsumer.ack(queueMessages);
             }
         }
     }
@@ -437,41 +438,41 @@ public class SimpleReaderTest {
     @Test
     public void moveToPosition_valid_position() throws Exception {
         // 写入一条消息到队列中
-        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+        try (SimpleProducer writer = new SimpleProducer(producerConfig)) {
             writer.offer("test1");
             writer.offer("test2");
             writer.offer("test3");
             Thread.sleep(100);
             long messagePosition;
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-                QueueMessage message = simpleReader.take();
-                simpleReader.ack(message);
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+                QueueMessage message = simpleConsumer.take();
+                simpleConsumer.ack(message);
                 assertEquals("test1", message.getContent());
                 // make surce position has been flushed.
                 messagePosition = message.getPosition();
                 Thread.sleep(100);
 
             }
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-                QueueMessage message2 = simpleReader.take();
-                simpleReader.ack(message2);
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+                QueueMessage message2 = simpleConsumer.take();
+                simpleConsumer.ack(message2);
                 assertEquals("test2", message2.getContent());
                 // make surce position has been flushed.
                 Thread.sleep(100);
                 // *** 指向test1 的位置
-                boolean moveToResult = simpleReader.moveToPosition(messagePosition);
+                boolean moveToResult = simpleConsumer.moveToPosition(messagePosition);
                 assertTrue(moveToResult);
                 Thread.sleep(100);
-                QueueMessage message = simpleReader.take();
+                QueueMessage message = simpleConsumer.take();
                 assertEquals("test1", message.getContent());
-                simpleReader.ack(message);
+                simpleConsumer.ack(message);
                 // make surce position has been flushed.
                 Thread.sleep(100);
             }
             // 在继续读后面 还是test2
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-                QueueMessage message2 = simpleReader.take();
-                simpleReader.ack(message2);
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+                QueueMessage message2 = simpleConsumer.take();
+                simpleConsumer.ack(message2);
                 assertEquals("test2", message2.getContent());
                 // make surce position has been flushed.
                 Thread.sleep(100);
@@ -483,35 +484,35 @@ public class SimpleReaderTest {
     @Test
     public void moveToPosition_invalid_position() throws Exception {
         // 写入一条消息到队列中
-        try (SimpleWriter writer = new SimpleWriter(writerConfig)) {
+        try (SimpleProducer writer = new SimpleProducer(producerConfig)) {
             writer.offer("test1");
             writer.offer("test2");
             writer.offer("test3");
             Thread.sleep(100);
             long messagePosition;
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-                QueueMessage message = simpleReader.take();
-                simpleReader.ack(message);
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+                QueueMessage message = simpleConsumer.take();
+                simpleConsumer.ack(message);
                 assertEquals("test1", message.getContent());
                 // make surce position has been flushed.
                 messagePosition = message.getPosition();
                 Thread.sleep(100);
 
             }
-            try (SimpleReader simpleReader = new SimpleReader(readerConfig)) {
-                QueueMessage message2 = simpleReader.take();
-                simpleReader.ack(message2);
+            try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+                QueueMessage message2 = simpleConsumer.take();
+                simpleConsumer.ack(message2);
                 assertEquals("test2", message2.getContent());
                 // make surce position has been flushed.
                 Thread.sleep(100);
                 // *** 指向test1 的位置
-                boolean moveToResult = simpleReader.moveToPosition(9999999999999L);
+                boolean moveToResult = simpleConsumer.moveToPosition(9999999999999L);
                 assertFalse(moveToResult);
                 Thread.sleep(100);
-                QueueMessage message = simpleReader.take();
+                QueueMessage message = simpleConsumer.take();
                 // 重置位置失败，接着test2 向下读
                 assertEquals("test3", message.getContent());
-                simpleReader.ack(message);
+                simpleConsumer.ack(message);
                 // make surce position has been flushed.
                 Thread.sleep(100);
             }

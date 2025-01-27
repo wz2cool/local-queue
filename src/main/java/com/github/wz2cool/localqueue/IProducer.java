@@ -1,11 +1,11 @@
 package com.github.wz2cool.localqueue;
 
 /**
- * writer interface.
+ * producer interface.
  *
  * @author Frank
  */
-public interface IWriter {
+public interface IProducer {
 
     /**
      * offer message to queue.

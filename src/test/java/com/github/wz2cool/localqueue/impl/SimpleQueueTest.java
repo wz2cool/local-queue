@@ -1,6 +1,6 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.IReader;
+import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.RollCycles;
@@ -46,8 +46,8 @@ public class SimpleQueueTest {
             Thread.sleep(100);
             Thread reader1Thread = new Thread(() -> {
                 try {
-                    String readerKey = "reader1";
-                    IReader reader = queue.getReader(readerKey);
+                    String consumerId = "reader1";
+                    IConsumer reader = queue.getConsumer(consumerId);
                     Thread.sleep(100);
                     List<QueueMessage> queueMessages = reader.batchTake(10);
                     assertEquals(10, queueMessages.size());
@@ -59,8 +59,8 @@ public class SimpleQueueTest {
             });
             Thread reader2Thread = new Thread(() -> {
                 try {
-                    String readerKey = "reader2";
-                    IReader reader = queue.getReader(readerKey);
+                    String consumerId = "reader2";
+                    IConsumer reader = queue.getConsumer(consumerId);
                     Thread.sleep(100);
                     List<QueueMessage> queueMessages = reader.batchTake(20);
                     assertEquals(20, queueMessages.size());

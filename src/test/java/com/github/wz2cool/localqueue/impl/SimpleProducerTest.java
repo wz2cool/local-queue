@@ -1,6 +1,6 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,16 +16,16 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings("all")
-public class SimpleWriterTest {
+public class SimpleProducerTest {
 
     private File dir;
-    private SimpleWriterConfig config;
+    private SimpleProducerConfig config;
 
     @BeforeEach
     public void setUp() throws IOException {
         dir = new File("./test");
         FileUtils.deleteDirectory(dir);
-        config = new SimpleWriterConfig.Builder()
+        config = new SimpleProducerConfig.Builder()
                 .setDataDir(dir)
                 .setKeepDays(1)
                 .build();
@@ -38,16 +38,16 @@ public class SimpleWriterTest {
 
     @Test
     public void testOfferToLocal() throws InterruptedException {
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            simpleWriter.offer("init");
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            simpleProducer.offer("init");
             // make sure data write
             TimeUnit.MILLISECONDS.sleep(100);
-            long writePosition1 = simpleWriter.getLastPosition();
-            simpleWriter.offer("test1");
-            simpleWriter.offer("test2");
+            long writePosition1 = simpleProducer.getLastPosition();
+            simpleProducer.offer("test1");
+            simpleProducer.offer("test2");
             // make sure data write
             TimeUnit.MILLISECONDS.sleep(100);
-            long writePosition2 = simpleWriter.getLastPosition();
+            long writePosition2 = simpleProducer.getLastPosition();
             long diff = writePosition2 - writePosition1;
             assertEquals(2, diff);
         }
@@ -55,9 +55,9 @@ public class SimpleWriterTest {
 
     @Test
     public void testClose() {
-        SimpleWriter test;
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            test = simpleWriter;
+        SimpleProducer test;
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            test = simpleProducer;
         }
         assertTrue(test.isClosed());
     }
@@ -69,8 +69,8 @@ public class SimpleWriterTest {
         FileUtils.createParentDirectories(oldFile);
         oldFile.createNewFile();
         LocalDate keepDate = LocalDate.of(2023, 1, 2);
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, oldFile, keepDate);
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            invokePrivateMethod(simpleProducer, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, oldFile, keepDate);
         }
         assertFalse(oldFile.exists(), "Old file should be deleted");
     }
@@ -85,8 +85,8 @@ public class SimpleWriterTest {
         boolean createFileResult = newFile.createNewFile();
         assertTrue(createFileResult);
         LocalDate keepDate = LocalDate.of(2023, 1, 1);
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, newFile, keepDate);
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            invokePrivateMethod(simpleProducer, "cleanUpOldFile", new Class[]{File.class, LocalDate.class}, newFile, keepDate);
         }
         assertTrue(newFile.exists(), "New file should not be deleted");
     }
@@ -100,16 +100,16 @@ public class SimpleWriterTest {
         File oldFile = new File(dir, "20230101F.cq4");
         FileUtils.createParentDirectories(oldFile);
         oldFile.createNewFile();
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, -1);
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            invokePrivateMethod(simpleProducer, "cleanUpOldFiles", new Class[]{int.class}, -1);
         }
         assertTrue(oldFile.exists(), "File should not be deleted when keepDays is -1");
     }
 
     @Test
     public void cleanUpOldFiles_NoFilesInDirectory_NoFilesDeleted() throws Exception {
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, 1);
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            invokePrivateMethod(simpleProducer, "cleanUpOldFiles", new Class[]{int.class}, 1);
         }
         // No files should be deleted as there are no files in the directory, and should see No file found log.
 
@@ -125,8 +125,8 @@ public class SimpleWriterTest {
         File newFile = new File(dir, fileName);
         FileUtils.createParentDirectories(newFile);
         newFile.createNewFile();
-        try (SimpleWriter simpleWriter = new SimpleWriter(config)) {
-            invokePrivateMethod(simpleWriter, "cleanUpOldFiles", new Class[]{int.class}, 1);
+        try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            invokePrivateMethod(simpleProducer, "cleanUpOldFiles", new Class[]{int.class}, 1);
         }
         assertTrue(newFile.exists(), "New file should not be deleted");
     }

@@ -1,7 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
-import com.github.wz2cool.localqueue.IWriter;
-import com.github.wz2cool.localqueue.model.config.SimpleWriterConfig;
+import com.github.wz2cool.localqueue.IProducer;
+import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
@@ -25,11 +25,11 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author frank
  */
-public class SimpleWriter implements IWriter, AutoCloseable {
+public class SimpleProducer implements IProducer, AutoCloseable {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    private final SimpleWriterConfig config;
+    private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
     private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
@@ -41,7 +41,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
 
-    public SimpleWriter(final SimpleWriterConfig config) {
+    public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
         this.appenderThreadLocal = ThreadLocal.withInitial(this.queue::createAppender);
@@ -119,7 +119,7 @@ public class SimpleWriter implements IWriter, AutoCloseable {
     /**
      * is closed.
      *
-     * @return true if the writer is closed, false otherwise.
+     * @return true if the Producer is closed, false otherwise.
      */
     public boolean isClosed() {
         return isClosed;
