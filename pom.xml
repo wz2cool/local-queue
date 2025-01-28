@@ -88,12 +88,6 @@
             <version>2.14.0</version>  <!-- 使用最新版本 -->
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.2.6</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 

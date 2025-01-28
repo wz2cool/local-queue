@@ -2,6 +2,7 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
+import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
@@ -37,6 +38,7 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
     private final Lock internalLock = new ReentrantLock();
+
     private volatile boolean isFlushRunning = true;
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
@@ -48,7 +50,6 @@ public class SimpleProducer implements IProducer, AutoCloseable {
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
     }
-
 
     /// region flush to file
     private void flush() {
@@ -89,8 +90,12 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 return;
             }
             ExcerptAppender appender = appenderThreadLocal.get();
+            long writeTime = System.currentTimeMillis();
             for (String message : messages) {
-                appender.writeText(message);
+                InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
+                internalWriteMessage.setWriteTime(writeTime);
+                internalWriteMessage.setContent(message);
+                appender.writeBytes(internalWriteMessage);
             }
         } finally {
             internalLock.unlock();

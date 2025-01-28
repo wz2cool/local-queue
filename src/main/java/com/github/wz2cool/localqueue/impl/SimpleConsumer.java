@@ -2,6 +2,7 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
+import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -170,13 +171,14 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             while (this.isReadToCacheRunning && !isClosing) {
                 try {
                     ExcerptTailer tailer = tailerThreadLocal.get();
-                    String message = tailer.readText();
-                    if (Objects.isNull(message)) {
+                    InternalReadMessage internalReadMessage = new InternalReadMessage();
+                    boolean readResult = tailer.readBytes(internalReadMessage);
+                    if (!readResult) {
                         TimeUnit.MILLISECONDS.sleep(pullInterval);
                         continue;
                     }
                     long lastedReadIndex = tailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(positionVersion.get(), lastedReadIndex, message);
+                    QueueMessage queueMessage = new QueueMessage(positionVersion.get(), lastedReadIndex, internalReadMessage.getContent());
                     this.messageCache.put(queueMessage);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -186,6 +188,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             internalLock.unlock();
         }
     }
+
 
     private ExcerptTailer initExcerptTailer() {
         ExcerptTailer tailer = queue.createTailer();
