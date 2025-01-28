@@ -147,6 +147,32 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         }
     }
 
+    @Override
+    public boolean moveToTimestamp(long timestamp) {
+        Optional<Long> positionOptional = findPosition(timestamp);
+        if (!positionOptional.isPresent()) {
+            return false;
+        }
+        Long position = positionOptional.get();
+        return moveToPosition(position);
+    }
+
+    private Optional<Long> findPosition(final long timestamp) {
+        try (ExcerptTailer excerptTailer = initExcerptTailer()) {
+            while (true) {
+                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                boolean resultResult = excerptTailer.readBytes(internalReadMessage);
+                if (resultResult) {
+                    if (internalReadMessage.getWriteTime() >= timestamp) {
+                        return Optional.of(excerptTailer.lastReadIndex());
+                    }
+                } else {
+                    return Optional.empty();
+                }
+            }
+        }
+    }
+
     public long getAckedReadPosition() {
         return ackedReadPosition;
     }
