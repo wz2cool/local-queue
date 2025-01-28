@@ -376,9 +376,9 @@ public class SimpleConusmerTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(0, 1L, "message1"));
-            messages.add(new QueueMessage(0, 2L, "message2"));
-            messages.add(new QueueMessage(0, 3L, "message3"));
+            messages.add(new QueueMessage(0, 1L, "message1", System.currentTimeMillis()));
+            messages.add(new QueueMessage(0, 2L, "message2", System.currentTimeMillis()));
+            messages.add(new QueueMessage(0, 3L, "message3", System.currentTimeMillis()));
             simpleConsumer.ack(messages);
             assertEquals(3L, simpleConsumer.getAckedReadPosition());
         }

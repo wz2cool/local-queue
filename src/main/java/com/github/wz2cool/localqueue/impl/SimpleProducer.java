@@ -90,8 +90,8 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 return;
             }
             ExcerptAppender appender = appenderThreadLocal.get();
-            long writeTime = System.currentTimeMillis();
             for (String message : messages) {
+                long writeTime = System.currentTimeMillis();
                 InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
                 internalWriteMessage.setWriteTime(writeTime);
                 internalWriteMessage.setContent(message);

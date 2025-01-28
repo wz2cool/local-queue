@@ -178,7 +178,11 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                         continue;
                     }
                     long lastedReadIndex = tailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(positionVersion.get(), lastedReadIndex, internalReadMessage.getContent());
+                    QueueMessage queueMessage = new QueueMessage(
+                            positionVersion.get(),
+                            lastedReadIndex,
+                            internalReadMessage.getContent(),
+                            internalReadMessage.getWriteTime());
                     this.messageCache.put(queueMessage);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

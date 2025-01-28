@@ -15,13 +15,14 @@ public class QueueMessageTest {
         int positionVersion = 1;
         Long position = 100L;
         String content = "Hello, World!";
-
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        long writeTime = System.currentTimeMillis();
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertEquals(content, message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 
     @Test
@@ -30,13 +31,14 @@ public class QueueMessageTest {
         int positionVersion = 1;
         Long position = 100L;
         String content = null;
-
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        long writeTime = System.currentTimeMillis();
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertNull(message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 
     @Test
@@ -45,13 +47,15 @@ public class QueueMessageTest {
         int positionVersion = 1;
         Long position = 0L;
         String content = "Hello, World!";
+        long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertEquals(content, message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 
     @Test
@@ -60,13 +64,15 @@ public class QueueMessageTest {
         int positionVersion = 1;
         Long position = -1L;
         String content = "Hello, World!";
+        long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertEquals(content, message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 
     @Test
@@ -75,13 +81,15 @@ public class QueueMessageTest {
         int positionVersion = 0;
         Long position = 100L;
         String content = "Hello, World!";
+        long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertEquals(content, message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 
     @Test
@@ -90,12 +98,14 @@ public class QueueMessageTest {
         int positionVersion = -1;
         Long position = 100L;
         String content = "Hello, World!";
+        long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content);
+        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
         assertEquals(position, message.getPosition());
         assertEquals(content, message.getContent());
+        assertEquals(writeTime, message.getWriteTime());
     }
 }
