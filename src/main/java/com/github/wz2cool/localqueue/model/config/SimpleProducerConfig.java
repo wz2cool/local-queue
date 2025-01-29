@@ -45,7 +45,7 @@ public class SimpleProducerConfig {
         private File dataDir;
         private int keepDays = -1;
         private int flushBatchSize = 1000;
-        private long flushInterval = 100;
+        private long flushInterval = 10;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;

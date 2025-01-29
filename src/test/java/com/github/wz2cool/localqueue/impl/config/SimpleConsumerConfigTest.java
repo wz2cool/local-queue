@@ -172,7 +172,7 @@ public class SimpleConsumerConfigTest {
                 .setFlushPositionInterval(100)
                 .build();
 
-        assertEquals(500, config.getPullInterval());
+        assertEquals(10, config.getPullInterval());
     }
 
     @Test

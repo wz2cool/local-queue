@@ -5,6 +5,7 @@ import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
+import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +42,11 @@ public class SimpleQueue implements IQueue, AutoCloseable {
 
     @Override
     public synchronized IConsumer getConsumer(final String consumerId) {
+        return getConsumer(consumerId, ConsumeFromWhere.LAST);
+    }
+
+    @Override
+    public synchronized IConsumer getConsumer(final String consumerId, final ConsumeFromWhere consumeFromWhere) {
         SimpleConsumer consumer = consumerMap.get(consumerId);
         if (Objects.nonNull(consumer)) {
             return consumer;
@@ -49,6 +55,7 @@ public class SimpleQueue implements IQueue, AutoCloseable {
         consumer = new SimpleConsumer(new SimpleConsumerConfig.Builder()
                 .setDataDir(config.getDataDir())
                 .setConsumerId(consumerId)
+                .setConsumeFromWhere(consumeFromWhere)
                 .build());
         consumerMap.put(consumerId, consumer);
         return consumer;

@@ -2,6 +2,7 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
+import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +36,7 @@ public class SimpleConusmerTest {
 
         consumerConfig = new SimpleConsumerConfig.Builder()
                 .setDataDir(dir)
+                .setConsumeFromWhere(ConsumeFromWhere.FIRST)
                 .setPositionFile(new File("./test/position.txt"))
                 .setConsumerId("test")
                 .setPullInterval(1)

@@ -2,6 +2,7 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
+import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -9,10 +10,7 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -130,13 +128,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     public boolean moveToPosition(final long position) {
         stopReadToCache();
         try {
-            if (isClosing) {
-                return false;
-            }
             internalLock.lock();
-            if (isClosing) {
-                return false;
-            }
             return CompletableFuture.supplyAsync(() -> {
                 ExcerptTailer tailer = tailerThreadLocal.get();
                 boolean moveToResult = tailer.moveToIndex(position);
@@ -242,6 +234,13 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             Long position = lastPositionOptional.get();
             long beginPosition = position + 1;
             tailer.moveToIndex(beginPosition);
+        } else {
+            ConsumeFromWhere consumeFromWhere = this.config.getConsumeFromWhere();
+            if (consumeFromWhere == ConsumeFromWhere.LAST) {
+                tailer.toEnd();
+            } else if (consumeFromWhere == ConsumeFromWhere.FIRST) {
+                tailer.toStart();
+            }
         }
         return tailer;
     }
