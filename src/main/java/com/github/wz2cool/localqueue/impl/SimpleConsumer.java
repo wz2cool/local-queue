@@ -202,7 +202,6 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                     ExcerptTailer tailer = tailerThreadLocal.get();
                     InternalReadMessage internalReadMessage = new InternalReadMessage();
                     boolean readResult = tailer.readBytes(internalReadMessage);
-                    System.out.println("cache： " + readResult);
                     if (!readResult) {
                         TimeUnit.MILLISECONDS.sleep(pullInterval);
                         continue;

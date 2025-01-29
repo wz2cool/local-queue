@@ -41,7 +41,7 @@ public class SimpleQueueTest {
     }
 
     @Test
-    public void testConsumeFirst() throws InterruptedException {
+    public void testConsume() throws InterruptedException {
         try (SimpleQueue queue = new SimpleQueue(config)) {
             for (int i = 0; i < 100; i++) {
                 queue.offer("test" + i);
@@ -90,6 +90,8 @@ public class SimpleQueueTest {
     @Test
     public void testConsumeLast() throws InterruptedException {
         try (SimpleQueue queue = new SimpleQueue(config)) {
+            queue.offer("test1");
+            Thread.sleep(100);
             // consumer from last
             IConsumer consumer1 = queue.getConsumer("consumer1");
             Optional<QueueMessage> messageOptional = consumer1.poll();
@@ -100,6 +102,19 @@ public class SimpleQueueTest {
             messageOptional = consumer1.poll();
             assertTrue(messageOptional.isPresent());
             assertEquals("test2", messageOptional.get().getContent());
+        }
+    }
+
+    @Test
+    public void testConsumeFirst() throws InterruptedException {
+        try (SimpleQueue queue = new SimpleQueue(config)) {
+            queue.offer("test1");
+            queue.offer("test2");
+            IConsumer consumer1 = queue.getConsumer("consumer1", ConsumeFromWhere.FIRST);
+            TimeUnit.MILLISECONDS.sleep(100);
+            Optional<QueueMessage> messageOptional = consumer1.poll();
+            assertTrue(messageOptional.isPresent());
+            assertEquals("test1", messageOptional.get().getContent());
         }
     }
 }
