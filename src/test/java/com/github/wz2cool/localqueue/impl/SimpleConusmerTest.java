@@ -10,10 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -438,10 +435,10 @@ public class SimpleConusmerTest {
     @Test
     public void moveToPosition_valid_position() throws Exception {
         // 写入一条消息到队列中
-        try (SimpleProducer writer = new SimpleProducer(producerConfig)) {
-            writer.offer("test1");
-            writer.offer("test2");
-            writer.offer("test3");
+        try (SimpleProducer producer = new SimpleProducer(producerConfig)) {
+            producer.offer("test1");
+            producer.offer("test2");
+            producer.offer("test3");
             Thread.sleep(100);
             long messagePosition;
             try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
@@ -484,10 +481,10 @@ public class SimpleConusmerTest {
     @Test
     public void moveToPosition_invalid_position() throws Exception {
         // 写入一条消息到队列中
-        try (SimpleProducer writer = new SimpleProducer(producerConfig)) {
-            writer.offer("test1");
-            writer.offer("test2");
-            writer.offer("test3");
+        try (SimpleProducer producer = new SimpleProducer(producerConfig)) {
+            producer.offer("test1");
+            producer.offer("test2");
+            producer.offer("test3");
             Thread.sleep(100);
             long messagePosition;
             try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
@@ -520,6 +517,57 @@ public class SimpleConusmerTest {
 
     }
 
+
+    // endregion
+
+    // region moveToTimestamp
+    @Test
+    public void moveToTimestamp_valid_timestamp() throws Exception {
+        try (SimpleProducer producer = new SimpleProducer(producerConfig);
+             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
+            List<Long> timeList = new ArrayList<>();
+            for (int i = 0; i < 300; i++) {
+                String msg = "msg" + i;
+                producer.offer(msg);
+                long msg1Time = System.currentTimeMillis();
+                Thread.sleep(10);
+                timeList.add(msg1Time);
+            }
+            Thread.sleep(100);
+            int testIndex = 22;
+            Long time = timeList.get(testIndex);
+            long now = System.currentTimeMillis();
+            boolean moveToResult = consumer.moveToTimestamp(time);
+            long end = System.currentTimeMillis();
+            System.out.println("moveToTimestamp cost:" + (end - now));
+            assertTrue(moveToResult);
+            // make sure apply success.
+            Thread.sleep(100);
+            QueueMessage message = consumer.take();
+            assertEquals("msg" + testIndex, message.getContent());
+        }
+    }
+
+    @Test
+    public void moveToTimestamp_invalid_timestamp() throws Exception {
+        try (SimpleProducer producer = new SimpleProducer(producerConfig);
+             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
+            List<Long> timeList = new ArrayList<>();
+            for (int i = 0; i < 300; i++) {
+                String msg = "msg" + i;
+                producer.offer(msg);
+                long msg1Time = System.currentTimeMillis();
+                Thread.sleep(10);
+                timeList.add(msg1Time);
+            }
+
+            long now = System.currentTimeMillis();
+            boolean moveToResult = consumer.moveToTimestamp(now);
+            long end = System.currentTimeMillis();
+            System.out.println("moveToTimestamp cost:" + (end - now));
+            assertFalse(moveToResult);
+        }
+    }
 
     // endregion
 }

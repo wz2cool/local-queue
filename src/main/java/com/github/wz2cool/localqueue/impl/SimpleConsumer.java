@@ -130,7 +130,13 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     public boolean moveToPosition(final long position) {
         stopReadToCache();
         try {
+            if (isClosing) {
+                return false;
+            }
             internalLock.lock();
+            if (isClosing) {
+                return false;
+            }
             return CompletableFuture.supplyAsync(() -> {
                 ExcerptTailer tailer = tailerThreadLocal.get();
                 boolean moveToResult = tailer.moveToIndex(position);
@@ -196,6 +202,11 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             long pullInterval = config.getPullInterval();
             while (this.isReadToCacheRunning && !isClosing) {
                 try {
+                    // when cache is full, sleep
+                    if (this.messageCache.remainingCapacity() == 0) {
+                        TimeUnit.MILLISECONDS.sleep(pullInterval);
+                        continue;
+                    }
                     ExcerptTailer tailer = tailerThreadLocal.get();
                     InternalReadMessage internalReadMessage = new InternalReadMessage();
                     boolean readResult = tailer.readBytes(internalReadMessage);
@@ -209,7 +220,11 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                             lastedReadIndex,
                             internalReadMessage.getContent(),
                             internalReadMessage.getWriteTime());
-                    this.messageCache.put(queueMessage);
+                    boolean offerResult = this.messageCache.offer(queueMessage, pullInterval, TimeUnit.MILLISECONDS);
+                    if (!offerResult) {
+                        // if offer failed, move to last read position
+                        tailer.moveToIndex(lastedReadIndex);
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
