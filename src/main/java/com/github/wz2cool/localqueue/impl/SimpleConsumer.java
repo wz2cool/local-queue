@@ -192,13 +192,9 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         try {
             internalLock.lock();
             long pullInterval = config.getPullInterval();
+            long fillCacheInterval = config.getFillCacheInterval();
             while (this.isReadToCacheRunning && !isClosing) {
                 try {
-                    // when cache is full, sleep
-                    if (this.messageCache.remainingCapacity() == 0) {
-                        TimeUnit.MILLISECONDS.sleep(pullInterval);
-                        continue;
-                    }
                     ExcerptTailer tailer = tailerThreadLocal.get();
                     InternalReadMessage internalReadMessage = new InternalReadMessage();
                     boolean readResult = tailer.readBytes(internalReadMessage);
@@ -212,7 +208,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                             lastedReadIndex,
                             internalReadMessage.getContent(),
                             internalReadMessage.getWriteTime());
-                    boolean offerResult = this.messageCache.offer(queueMessage, pullInterval, TimeUnit.MILLISECONDS);
+                    boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
                     if (!offerResult) {
                         // if offer failed, move to last read position
                         tailer.moveToIndex(lastedReadIndex);
