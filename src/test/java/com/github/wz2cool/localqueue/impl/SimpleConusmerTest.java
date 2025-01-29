@@ -51,7 +51,7 @@ public class SimpleConusmerTest {
         FileUtils.deleteDirectory(dir);
     }
 
-    /// region take
+    // region take
 
     @Test
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
@@ -101,9 +101,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region batch take
+    // region batch take
 
     @Test
     public void batchTake_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
@@ -168,9 +168,9 @@ public class SimpleConusmerTest {
             assertEquals("test2", messages.get(1).getContent());
         }
     }
-    /// endregion
+    // endregion
 
-    /// region take with timeout
+    // region take with timeout
     @Test
     public void take_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
         try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
@@ -229,9 +229,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region batch take with timeout
+    // region batch take with timeout
 
     @Test
     public void batchTake_MessageAvailable_ReturnsQueueMessage() throws InterruptedException {
@@ -299,9 +299,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region poll
+    // region poll
 
     @Test
     public void poll_EmptyCache_ReturnsEmptyOptional() {
@@ -324,9 +324,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region batch poll
+    // region batch poll
 
     @Test
     public void batchPoll_EmptyCache_ReturnsEmptyOptional() {
@@ -351,9 +351,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region ack
+    // region ack
 
 
     @Test
@@ -384,9 +384,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endreigon
+    // endreigon
 
-    /// region close
+    // region close
 
     @Test
     public void close_CloseConsumer_ConsumerClosed() {
@@ -398,9 +398,9 @@ public class SimpleConusmerTest {
         assertTrue(test.isClosed());
     }
 
-    /// endregion
+    // endregion
 
-    /// region read position
+    // region read position
 
     @Test
     public void resumePosition() throws InterruptedException {
@@ -431,9 +431,9 @@ public class SimpleConusmerTest {
         }
     }
 
-    /// endregion
+    // endregion
 
-    /// region moveToPosition
+    // region moveToPosition
 
     @Test
     public void moveToPosition_valid_position() throws Exception {
@@ -521,5 +521,5 @@ public class SimpleConusmerTest {
     }
 
 
-    /// endregion
+    // endregion
 }
