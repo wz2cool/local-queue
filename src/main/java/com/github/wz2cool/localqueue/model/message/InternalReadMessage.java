@@ -13,6 +13,5 @@ public class InternalReadMessage extends BaseInternalMessage implements ReadByte
     public void readMarshallable(BytesIn<?> bytes) throws IORuntimeException, BufferUnderflowException, IllegalStateException, InvalidMarshallableException {
         this.content = bytes.readUtf8();
         this.writeTime = bytes.readLong();
-        this.extra = bytes.readUtf8();
     }
 }
