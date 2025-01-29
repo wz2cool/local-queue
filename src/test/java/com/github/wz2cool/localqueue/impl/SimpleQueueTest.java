@@ -94,12 +94,11 @@ public class SimpleQueueTest {
             IConsumer consumer1 = queue.getConsumer("consumer1");
             Optional<QueueMessage> messageOptional = consumer1.poll();
             assertFalse(messageOptional.isPresent());
+            TimeUnit.MILLISECONDS.sleep(100);
             queue.offer("test2");
             TimeUnit.MILLISECONDS.sleep(100);
-            System.out.println("poll message");
             messageOptional = consumer1.poll();
             assertTrue(messageOptional.isPresent());
-            TimeUnit.MILLISECONDS.sleep(10000);
             assertEquals("test2", messageOptional.get().getContent());
         }
     }
