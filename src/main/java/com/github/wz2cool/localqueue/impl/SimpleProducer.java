@@ -33,7 +33,8 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
-    private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
+    // should only call by flushExecutor
+    private final ExcerptAppender mainAppender;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -46,9 +47,13 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
-        this.appenderThreadLocal = ThreadLocal.withInitial(this.queue::createAppender);
+        this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
+    }
+
+    private ExcerptAppender initMainAppender() {
+        return CompletableFuture.supplyAsync(this.queue::createAppender, this.flushExecutor).join();
     }
 
     /// region flush to file
@@ -93,13 +98,13 @@ public class SimpleProducer implements IProducer, AutoCloseable {
             if (!isFlushRunning || isClosing) {
                 return;
             }
-            ExcerptAppender appender = appenderThreadLocal.get();
+
             for (String message : messages) {
                 long writeTime = System.currentTimeMillis();
                 InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
                 internalWriteMessage.setWriteTime(writeTime);
                 internalWriteMessage.setContent(message);
-                appender.writeBytes(internalWriteMessage);
+                mainAppender.writeBytes(internalWriteMessage);
             }
         } finally {
             internalLock.unlock();
@@ -158,8 +163,6 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 flushExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
-
-            appenderThreadLocal.remove();
             isClosed = true;
         } finally {
             logDebug("[close] end");

@@ -12,7 +12,10 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -29,7 +32,8 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
     private final SingleChronicleQueue queue;
-    private final ThreadLocal<ExcerptTailer> tailerThreadLocal;
+    // should only call by readCacheExecutor
+    private final ExcerptTailer mainTailer;
     private final ExecutorService readCacheExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
@@ -39,7 +43,6 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     private volatile boolean isClosed = false;
     private final AtomicInteger positionVersion = new AtomicInteger(0);
     private final Lock internalLock = new ReentrantLock();
-
 
     /**
      * constructor
@@ -51,9 +54,9 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
-        this.tailerThreadLocal = ThreadLocal.withInitial(this::initExcerptTailer);
-        scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
+        this.mainTailer = initMainTailer();
         startReadToCache();
+        scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -140,8 +143,8 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     }
 
     @Override
-    public boolean moveToTimestamp(long timestamp) {
-        logDebug("[moveToTimestamp] start");
+    public boolean moveToTimestamp(final long timestamp) {
+        logDebug("[moveToTimestamp] start, timestamp: {}", timestamp);
         stopReadToCache();
         try {
             internalLock.lock();
@@ -159,12 +162,10 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     }
 
     private boolean moveToPositionInternal(final long position) {
-
         return CompletableFuture.supplyAsync(() -> {
             try {
-                logDebug("[moveToPositionInternal] start");
-                ExcerptTailer tailer = tailerThreadLocal.get();
-                boolean moveToResult = tailer.moveToIndex(position);
+                logDebug("[moveToPositionInternal] start, position: {}", position);
+                boolean moveToResult = mainTailer.moveToIndex(position);
                 if (moveToResult) {
                     positionVersion.incrementAndGet();
                     messageCache.clear();
@@ -178,8 +179,8 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     }
 
     private Optional<Long> findPosition(final long timestamp) {
-        logDebug("[findPosition] start");
-        try (ExcerptTailer excerptTailer = initExcerptTailer()) {
+        logDebug("[findPosition] start, timestamp: {}", timestamp);
+        try (ExcerptTailer excerptTailer = queue.createTailer()) {
             while (true) {
                 InternalReadMessage internalReadMessage = new InternalReadMessage();
                 boolean resultResult = excerptTailer.readBytes(internalReadMessage);
@@ -221,14 +222,13 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             long fillCacheInterval = config.getFillCacheInterval();
             while (this.isReadToCacheRunning && !isClosing) {
                 try {
-                    ExcerptTailer tailer = tailerThreadLocal.get();
                     InternalReadMessage internalReadMessage = new InternalReadMessage();
-                    boolean readResult = tailer.readBytes(internalReadMessage);
+                    boolean readResult = mainTailer.readBytes(internalReadMessage);
                     if (!readResult) {
                         TimeUnit.MILLISECONDS.sleep(pullInterval);
                         continue;
                     }
-                    long lastedReadIndex = tailer.lastReadIndex();
+                    long lastedReadIndex = mainTailer.lastReadIndex();
                     QueueMessage queueMessage = new QueueMessage(
                             positionVersion.get(),
                             lastedReadIndex,
@@ -237,7 +237,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                     boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
                     if (!offerResult) {
                         // if offer failed, move to last read position
-                        tailer.moveToIndex(lastedReadIndex);
+                        mainTailer.moveToIndex(lastedReadIndex);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -249,23 +249,35 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         }
     }
 
+    private ExcerptTailer initMainTailer() {
+        return CompletableFuture.supplyAsync(this::initMainTailerInternal, this.readCacheExecutor).join();
+    }
 
-    private ExcerptTailer initExcerptTailer() {
-        ExcerptTailer tailer = queue.createTailer();
-        Optional<Long> lastPositionOptional = getLastPosition();
-        if (lastPositionOptional.isPresent()) {
-            Long position = lastPositionOptional.get();
-            long beginPosition = position + 1;
-            tailer.moveToIndex(beginPosition);
-        } else {
-            ConsumeFromWhere consumeFromWhere = this.config.getConsumeFromWhere();
-            if (consumeFromWhere == ConsumeFromWhere.LAST) {
-                tailer.toEnd();
-            } else if (consumeFromWhere == ConsumeFromWhere.FIRST) {
-                tailer.toStart();
+    private ExcerptTailer initMainTailerInternal() {
+        try {
+            logDebug("[initExcerptTailerInternal] start");
+            ExcerptTailer tailer = queue.createTailer();
+            Optional<Long> lastPositionOptional = getLastPosition();
+            if (lastPositionOptional.isPresent()) {
+                Long position = lastPositionOptional.get();
+                long beginPosition = position + 1;
+                tailer.moveToIndex(beginPosition);
+                logDebug("[initExcerptTailerInternal] find last position and move to position: {}", beginPosition);
+            } else {
+                ConsumeFromWhere consumeFromWhere = this.config.getConsumeFromWhere();
+                if (consumeFromWhere == ConsumeFromWhere.LAST) {
+                    tailer.toEnd();
+                    logDebug("[initExcerptTailerInternal] move to end");
+                } else if (consumeFromWhere == ConsumeFromWhere.FIRST) {
+                    tailer.toStart();
+                    logDebug("[initExcerptTailerInternal] move to start");
+                }
             }
+            return tailer;
+        } finally {
+            logDebug("[initExcerptTailer] end");
         }
-        return tailer;
+
     }
 
     /// region position
@@ -314,7 +326,6 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                 readCacheExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
-            tailerThreadLocal.remove();
             queue.close();
             isClosed = true;
         } finally {
@@ -325,6 +336,12 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
             logger.debug(format);
+        }
+    }
+
+    private void logDebug(String format, Object arg) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(format, arg);
         }
     }
 }
