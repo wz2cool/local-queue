@@ -1,5 +1,7 @@
 package com.github.wz2cool.localqueue.model.config;
 
+import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
+
 import java.io.File;
 import java.util.Objects;
 
@@ -13,17 +15,23 @@ public class SimpleConsumerConfig {
 
     private final long pullInterval;
 
+    private final long fillCacheInterval;
+
     private final int cacheSize;
 
     private final long flushPositionInterval;
+
+    private final ConsumeFromWhere consumeFromWhere;
 
     private SimpleConsumerConfig(final Builder builder) {
         this.dataDir = builder.dataDir;
         this.positionFile = builder.positionFile;
         this.consumerId = builder.consumerId;
         this.pullInterval = builder.pullInterval;
+        this.fillCacheInterval = builder.fillCacheInterval;
         this.cacheSize = builder.cacheSize;
         this.flushPositionInterval = builder.flushPositionInterval;
+        this.consumeFromWhere = builder.consumeFromWhere;
     }
 
     public File getDataDir() {
@@ -50,6 +58,14 @@ public class SimpleConsumerConfig {
         return flushPositionInterval;
     }
 
+    public ConsumeFromWhere getConsumeFromWhere() {
+        return consumeFromWhere;
+    }
+
+    public long getFillCacheInterval() {
+        return fillCacheInterval;
+    }
+
     public static class Builder {
 
         private File dataDir;
@@ -58,11 +74,15 @@ public class SimpleConsumerConfig {
 
         private String consumerId;
 
-        private long pullInterval = 500;
+        private long pullInterval = 10;
 
         private int cacheSize = 10000;
 
+        private long fillCacheInterval = 500;
+
         private long flushPositionInterval = 100;
+
+        private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.LAST;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;
@@ -94,6 +114,16 @@ public class SimpleConsumerConfig {
             return this;
         }
 
+        public Builder setConsumeFromWhere(ConsumeFromWhere consumeFromWhere) {
+            this.consumeFromWhere = consumeFromWhere;
+            return this;
+        }
+
+        public Builder setFillCacheInterval(long fillCacheInterval) {
+            this.fillCacheInterval = fillCacheInterval;
+            return this;
+        }
+
         public SimpleConsumerConfig build() {
             if (Objects.isNull(dataDir)) {
                 throw new IllegalArgumentException("dataDir cannot be null");
@@ -115,6 +145,18 @@ public class SimpleConsumerConfig {
             if (Objects.isNull(positionFile)) {
                 // 如果没有就给默认
                 this.positionFile = new File(dataDir, "position.dat");
+            }
+
+            if (Objects.isNull(consumeFromWhere)) {
+                throw new IllegalArgumentException("consumeFromWhere cannot be null");
+            }
+
+            if (pullInterval <= 0) {
+                throw new IllegalArgumentException("pullInterval should > 0");
+            }
+
+            if (fillCacheInterval <= 0) {
+                throw new IllegalArgumentException("fillCacheInterval should > 0");
             }
 
             return new SimpleConsumerConfig(this);

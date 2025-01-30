@@ -2,6 +2,7 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
+import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
@@ -32,11 +33,13 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
-    private final ThreadLocal<ExcerptAppender> appenderThreadLocal;
+    // should only call by flushExecutor
+    private final ExcerptAppender mainAppender;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
     private final Lock internalLock = new ReentrantLock();
+
     private volatile boolean isFlushRunning = true;
     private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
@@ -44,16 +47,19 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
-        this.appenderThreadLocal = ThreadLocal.withInitial(this.queue::createAppender);
+        this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
     }
 
+    private ExcerptAppender initMainAppender() {
+        return CompletableFuture.supplyAsync(this.queue::createAppender, this.flushExecutor).join();
+    }
 
     /// region flush to file
     private void flush() {
         while (isFlushRunning && !isClosing) {
-            flushInternal(config.getFlushBatchSize());
+            flushMessages(config.getFlushBatchSize());
         }
     }
 
@@ -63,8 +69,9 @@ public class SimpleProducer implements IProducer, AutoCloseable {
 
     private final List<String> tempFlushMessages = new ArrayList<>();
 
-    private void flushInternal(int batchSize) {
+    private void flushMessages(int batchSize) {
         try {
+            logDebug("[flushInternal] start");
             if (tempFlushMessages.isEmpty()) {
                 // take 主要作用就是卡主线程
                 String firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
@@ -75,25 +82,33 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
             }
-            flushInternal(tempFlushMessages);
+            flushMessages(tempFlushMessages);
             tempFlushMessages.clear();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+        } finally {
+            logDebug("[flushInternal] end");
         }
     }
 
-    private void flushInternal(List<String> messages) {
+    private void flushMessages(final List<String> messages) {
         try {
+            logDebug("[flushMessages] start");
             internalLock.lock();
             if (!isFlushRunning || isClosing) {
                 return;
             }
-            ExcerptAppender appender = appenderThreadLocal.get();
+
             for (String message : messages) {
-                appender.writeText(message);
+                long writeTime = System.currentTimeMillis();
+                InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
+                internalWriteMessage.setWriteTime(writeTime);
+                internalWriteMessage.setContent(message);
+                mainAppender.writeBytes(internalWriteMessage);
             }
         } finally {
             internalLock.unlock();
+            logDebug("[flushMessages] end");
         }
     }
 
@@ -127,28 +142,31 @@ public class SimpleProducer implements IProducer, AutoCloseable {
 
     @Override
     public void close() {
-        isClosing = true;
-        internalLock.lock();
-        stopFlush();
-        internalLock.unlock();
-        queue.close();
-        flushExecutor.shutdown();
-        scheduler.shutdown();
         try {
-            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+            logDebug("[close] start");
+            isClosing = true;
+            internalLock.lock();
+            stopFlush();
+            internalLock.unlock();
+            queue.close();
+            flushExecutor.shutdown();
+            scheduler.shutdown();
+            try {
+                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow();
+                }
+                if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                    flushExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
                 scheduler.shutdownNow();
-            }
-            if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                 flushExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            flushExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
+            isClosed = true;
+        } finally {
+            logDebug("[close] end");
         }
-
-        appenderThreadLocal.remove();
-        isClosed = true;
     }
 
     private void cleanUpOldFiles(int keepDays) {
@@ -156,12 +174,12 @@ public class SimpleProducer implements IProducer, AutoCloseable {
             // no need clean up old files
             return;
         }
-        logger.debug("[cleanUpOldFiles] start");
+        logDebug("[cleanUpOldFiles] start");
         try {
             // Assuming .cq4 is the file extension for Chronicle Queue
             File[] files = config.getDataDir().listFiles((dir, name) -> name.endsWith(".cq4"));
             if (files == null || files.length == 0) {
-                logger.debug("[cleanUpOldFiles] no files found");
+                logDebug("[cleanUpOldFiles] no files found");
                 return;
             }
             LocalDate now = LocalDate.now();
@@ -172,7 +190,7 @@ public class SimpleProducer implements IProducer, AutoCloseable {
         } catch (Exception ex) {
             logger.error("[cleanUpOldFiles] error", ex);
         } finally {
-            logger.debug("[cleanUpOldFiles] end");
+            logDebug("[cleanUpOldFiles] end");
         }
     }
 
@@ -182,9 +200,21 @@ public class SimpleProducer implements IProducer, AutoCloseable {
         LocalDate localDate = LocalDate.parse(dateString, this.dateFormatter);
         if (localDate.isBefore(keepDate)) {
             Files.deleteIfExists(file.toPath());
-            logger.debug("[cleanUpOldFile] Deleted old file: {}", file.getName());
+            logDebug("[cleanUpOldFile] Deleted old file: {}", file.getName());
         }
     }
 
     /// endregion
+
+    private void logDebug(String format) {
+        if (logger.isDebugEnabled()) {
+            logDebug(format);
+        }
+    }
+
+    private void logDebug(String format, Object arg) {
+        if (logger.isDebugEnabled()) {
+            logDebug(format, arg);
+        }
+    }
 }

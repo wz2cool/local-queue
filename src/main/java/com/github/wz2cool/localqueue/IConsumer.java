@@ -87,4 +87,6 @@ public interface IConsumer {
      * @return true if success
      */
     boolean moveToPosition(long position);
+
+    boolean moveToTimestamp(long timestamp);
 }

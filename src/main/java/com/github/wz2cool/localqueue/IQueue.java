@@ -1,5 +1,7 @@
 package com.github.wz2cool.localqueue;
 
+import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
+
 /**
  * queue interface
  *
@@ -16,11 +18,19 @@ public interface IQueue {
     boolean offer(String message);
 
     /**
-     * get reader
+     * get consumer
      *
-     * @param readerKey reader key
-     * @return reader
+     * @param consumerId consumer id
+     * @return consumer
      */
-    IConsumer getConsumer(String readerKey);
+    IConsumer getConsumer(String consumerId);
 
+    /**
+     * get consumer
+     *
+     * @param consumerId       consumer id
+     * @param consumeFromWhere consume from where
+     * @return consumer
+     */
+    IConsumer getConsumer(String consumerId, ConsumeFromWhere consumeFromWhere);
 }

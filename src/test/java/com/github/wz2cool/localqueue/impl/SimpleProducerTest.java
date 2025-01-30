@@ -63,7 +63,7 @@ public class SimpleProducerTest {
         assertTrue(test.isClosed());
     }
 
-    /// region cleanUpOldFile
+    // region cleanUpOldFile
     @Test
     public void cleanUpOldFile_FileOlderThanKeepDate_FileDeleted() throws Exception {
         File oldFile = new File(dir, "20230101F.cq4");
@@ -92,9 +92,9 @@ public class SimpleProducerTest {
         assertTrue(newFile.exists(), "New file should not be deleted");
     }
 
-    /// endregion
+    // endregion
 
-    /// region cleanUpOldFiles
+    // region cleanUpOldFiles
 
     @Test
     public void cleanUpOldFiles_KeepDaysMinusOne_NoFilesDeleted() throws Exception {
@@ -139,7 +139,7 @@ public class SimpleProducerTest {
     }
 
 
-    /// endregion
+    // endregion
 
     private void invokePrivateMethod(Object object, String methodName, Class<?>[] parameterTypes, Object... parameters) throws Exception {
         Method method = object.getClass().getDeclaredMethod(methodName, parameterTypes);
