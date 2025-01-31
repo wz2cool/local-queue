@@ -13,9 +13,11 @@ import java.nio.file.Path;
  *
  * @author frank
  */
-public class PositionStore implements IStore<Long>, AutoCloseable {
+public class PositionStore implements IStore<Long> {
 
     private final ChronicleMap<String, Long> map;
+
+    private volatile boolean isClosed = false;
 
     /**
      * 构造函数
@@ -38,6 +40,10 @@ public class PositionStore implements IStore<Long>, AutoCloseable {
         }
     }
 
+    public boolean isClosed() {
+        return this.isClosed;
+    }
+
     @Override
     public void put(String key, Long value) {
         this.map.put(key, value);
@@ -50,6 +56,9 @@ public class PositionStore implements IStore<Long>, AutoCloseable {
 
     @Override
     public void close() {
-        this.map.close();
+        if (!this.map.isClosed()) {
+            this.map.close();
+        }
+        this.isClosed = true;
     }
 }

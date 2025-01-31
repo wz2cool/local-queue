@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -27,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author frank
  */
-public class SimpleProducer implements IProducer, AutoCloseable {
+public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -40,6 +41,7 @@ public class SimpleProducer implements IProducer, AutoCloseable {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
     private final Lock internalLock = new ReentrantLock();
+    private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
 
     private volatile boolean isFlushRunning = true;
     private volatile boolean isClosing = false;
@@ -156,7 +158,9 @@ public class SimpleProducer implements IProducer, AutoCloseable {
             internalLock.lock();
             stopFlush();
             internalLock.unlock();
-            queue.close();
+            if (!queue.isClosed()) {
+                queue.close();
+            }
             flushExecutor.shutdown();
             scheduler.shutdown();
             try {
@@ -171,10 +175,18 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 flushExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            for (CloseListener closeListener : closeListeners) {
+                closeListener.onClose();
+            }
             isClosed = true;
         } finally {
             logDebug("[close] end");
         }
+    }
+
+    @Override
+    public void addCloseListener(CloseListener listener) {
+        closeListeners.add(listener);
     }
 
     private void cleanUpOldFiles(int keepDays) {

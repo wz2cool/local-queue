@@ -1,5 +1,6 @@
 package com.github.wz2cool.localqueue;
 
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author frank
  */
-public interface IConsumer {
+public interface IConsumer extends AutoCloseable {
 
     /**
      * blocking thread until message available.
@@ -114,4 +115,16 @@ public interface IConsumer {
      * @return message
      */
     Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
+
+    /**
+     * close consumer.
+     */
+    void close();
+
+    /**
+     * add close listener.
+     *
+     * @param listener close listener
+     */
+    void addCloseListener(CloseListener listener);
 }

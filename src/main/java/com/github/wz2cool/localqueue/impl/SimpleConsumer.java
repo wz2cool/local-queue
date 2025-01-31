@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IConsumer;
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
@@ -26,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author frank
  */
-public class SimpleConsumer implements IConsumer, AutoCloseable {
+public class SimpleConsumer implements IConsumer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final SimpleConsumerConfig config;
@@ -37,6 +38,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     private final ExecutorService readCacheExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
+    private final ConcurrentLinkedQueue<CloseListener> closeListenerList = new ConcurrentLinkedQueue<>();
     private volatile long ackedReadPosition = -1;
     private volatile boolean isReadToCacheRunning = true;
     private volatile boolean isClosing = false;
@@ -356,8 +358,9 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             this.internalLock.lock();
             stopReadToCache();
             this.internalLock.unlock();
-
-            positionStore.close();
+            if (!positionStore.isClosed()) {
+                positionStore.close();
+            }
             scheduler.shutdown();
             readCacheExecutor.shutdown();
             try {
@@ -372,11 +375,22 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                 readCacheExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
-            queue.close();
+            if (!queue.isClosed()) {
+                queue.close();
+            }
+
+            for (CloseListener closeListener : closeListenerList) {
+                closeListener.onClose();
+            }
             isClosed = true;
         } finally {
             logDebug("[close] end");
         }
+    }
+
+    @Override
+    public void addCloseListener(CloseListener listener) {
+        closeListenerList.add(listener);
     }
 
     private void logDebug(String format) {
