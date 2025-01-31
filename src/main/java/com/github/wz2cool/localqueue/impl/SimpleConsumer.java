@@ -2,12 +2,14 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.event.CloseListener;
+import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.RollCycle;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimpleConsumer implements IConsumer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final RollCycle defaultRollCycle = RollCycles.FAST_DAILY;
     private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
     private final SingleChronicleQueue queue;
@@ -55,7 +58,7 @@ public class SimpleConsumer implements IConsumer {
         this.config = config;
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
-        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
         this.mainTailer = initMainTailer();
         startReadToCache();
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
@@ -174,6 +177,7 @@ public class SimpleConsumer implements IConsumer {
             return Optional.empty();
         }
         try (ExcerptTailer tailer = queue.createTailer()) {
+            moveToNearByTimestamp(tailer, searchTimestampStart);
             while (true) {
                 // for performance, ignore read content.
                 InternalReadMessage internalReadMessage = new InternalReadMessage(true);
@@ -232,13 +236,14 @@ public class SimpleConsumer implements IConsumer {
 
     private Optional<Long> findPosition(final long timestamp) {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
-        try (ExcerptTailer excerptTailer = queue.createTailer()) {
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            moveToNearByTimestamp(tailer, timestamp);
             while (true) {
                 InternalReadMessage internalReadMessage = new InternalReadMessage(true);
-                boolean resultResult = excerptTailer.readBytes(internalReadMessage);
+                boolean resultResult = tailer.readBytes(internalReadMessage);
                 if (resultResult) {
                     if (internalReadMessage.getWriteTime() >= timestamp) {
-                        return Optional.of(excerptTailer.lastReadIndex());
+                        return Optional.of(tailer.lastReadIndex());
                     }
                 } else {
                     return Optional.empty();
@@ -385,6 +390,15 @@ public class SimpleConsumer implements IConsumer {
             isClosed = true;
         } finally {
             logDebug("[close] end");
+        }
+    }
+
+    private void moveToNearByTimestamp(ExcerptTailer tailer, long timestamp) {
+        int expectedCycle = ChronicleQueueHelper.cycle(defaultRollCycle, timestamp);
+        int currentCycle = tailer.cycle();
+        if (currentCycle != expectedCycle) {
+            boolean moveToCycleResult = tailer.moveToCycle(expectedCycle);
+            logDebug("[moveToNearByTimestamp] moveToCycleResult: {}", moveToCycleResult);
         }
     }
 

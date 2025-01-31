@@ -6,6 +6,7 @@ import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
+import net.openhft.chronicle.queue.RollCycle;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
@@ -31,7 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-
+    private final RollCycle defaultRollCycle = RollCycles.FAST_DAILY;
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
@@ -49,7 +50,7 @@ public class SimpleProducer implements IProducer {
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
-        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
         this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
