@@ -647,4 +647,58 @@ public class SimpleConusmerTest {
     }
 
     // endregion
+
+    // region get with timestamp
+    @Test
+    public void get_NullOrEmptyMessageKey_ReturnsEmptyOptional() {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Optional<QueueMessage> result = simpleConsumer.get(null,
+                    System.currentTimeMillis() - 1000,
+                    System.currentTimeMillis() + 1000);
+            assertFalse(result.isPresent());
+
+            result = simpleConsumer.get("",
+                    System.currentTimeMillis() - 1000,
+                    System.currentTimeMillis() + 1000);
+            assertFalse(result.isPresent());
+        }
+    }
+
+    @Test
+    public void get_MessageNotInTimeRange_ReturnsEmptyOptional() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleProducer.offer("testKey", "content1");
+            Thread.sleep(100);
+
+            simpleProducer.offer("testKey", "content2");
+            Thread.sleep(100);
+
+            Optional<QueueMessage> result = simpleConsumer.get("testKey",
+                    System.currentTimeMillis(),
+                    System.currentTimeMillis() + 1000);
+            assertFalse(result.isPresent());
+        }
+    }
+
+    @Test
+    public void get_MessageInTimeRange_Returns() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleProducer.offer("testKey", "content1");
+            Thread.sleep(100);
+            long recordTime = System.currentTimeMillis();
+            simpleProducer.offer("testKey", "content2");
+            Thread.sleep(100);
+
+            Optional<QueueMessage> result = simpleConsumer.get("testKey",
+                    recordTime,
+                    System.currentTimeMillis());
+            assertTrue(result.isPresent());
+            assertEquals("content2", result.get().getContent());
+        }
+    }
+
+
+    // endregion
 }
