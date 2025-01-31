@@ -139,6 +139,37 @@ public class SimpleQueueDemo {
             assertTrue(moveToResult);
             // 移动完成以后接着读
             QueueMessage takeMessage = consumer1.take();
+            assertEquals("key3", takeMessage.getMessageKey());
+            assertEquals(example.getPosition(), takeMessage.getPosition());
+            assertEquals(example.getMessageKey(), takeMessage.getMessageKey());
+        }
+    }
+
+    @Test
+    public void testMoveToTimestamp() throws InterruptedException {
+        try (SimpleQueue queue = new SimpleQueue(config)) {
+            for (int i = 0; i < 10; i++) {
+                String key = "key" + i;
+                String content = "content" + i;
+                queue.offer(key, content);
+                Thread.sleep(100);
+            }
+            IConsumer consumer1 = queue.getConsumer("consumer1", ConsumeFromWhere.FIRST);
+            // 确保消费者缓存填充完毕
+            Thread.sleep(100);
+            List<QueueMessage> queueMessages = consumer1.batchTake(10);
+            // 尝试取第三位
+            QueueMessage example = queueMessages.get(3);
+            consumer1.ack(queueMessages);
+            // 确保ack位点提交
+            Thread.sleep(100);
+            // 移动位置到第三个消息位置, 这次我们取的是时间
+            long writeTime = example.getWriteTime();
+            boolean moveToResult = consumer1.moveToTimestamp(writeTime);
+            assertTrue(moveToResult);
+            // 移动完成以后接着读
+            QueueMessage takeMessage = consumer1.take();
+            assertEquals("key3", takeMessage.getMessageKey());
             assertEquals(example.getPosition(), takeMessage.getPosition());
             assertEquals(example.getMessageKey(), takeMessage.getMessageKey());
         }

@@ -109,6 +109,12 @@ public class SimpleConusmerTest {
     public void batchTake_EmptyCache_BlocksUntilMessageAvailable() throws InterruptedException {
         try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
              SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleConsumer.addCloseListener(() -> {
+                System.out.println("consumer close");
+            });
+            simpleProducer.addCloseListener(() -> {
+                System.out.println("producer close");
+            });
             Thread consumeThread = new Thread(() -> {
                 try {
                     List<QueueMessage> messages = simpleConsumer.batchTake(1);

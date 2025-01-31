@@ -43,6 +43,10 @@ public class SimpleQueueTest {
     @Test
     public void testConsume() throws InterruptedException {
         try (SimpleQueue queue = new SimpleQueue(config)) {
+            queue.addCloseListener(() -> {
+                System.out.println("queue close");
+            });
+
             for (int i = 0; i < 100; i++) {
                 queue.offer("test" + i);
             }
