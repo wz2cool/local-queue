@@ -1,5 +1,6 @@
 package com.github.wz2cool.localqueue;
 
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author frank
  */
-public interface IConsumer {
+public interface IConsumer extends AutoCloseable {
 
     /**
      * blocking thread until message available.
@@ -88,5 +89,42 @@ public interface IConsumer {
      */
     boolean moveToPosition(long position);
 
+    /**
+     * move to timestamp.
+     *
+     * @param timestamp timestamp
+     * @return true if success
+     */
     boolean moveToTimestamp(long timestamp);
+
+    /**
+     * get message by messageKey.
+     * NOTE: if you want to get message by messageKey quickly, you should set searchTimestampStart and searchTimestampEnd.
+     *
+     * @param messageKey messageKey
+     * @return message
+     */
+    Optional<QueueMessage> get(String messageKey);
+
+    /**
+     * get message by messageKey.
+     *
+     * @param messageKey           messageKey
+     * @param searchTimestampStart search timestamp start
+     * @param searchTimestampEnd   search timestamp end
+     * @return message
+     */
+    Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
+
+    /**
+     * close consumer.
+     */
+    void close();
+
+    /**
+     * add close listener.
+     *
+     * @param listener close listener
+     */
+    void addCloseListener(CloseListener listener);
 }

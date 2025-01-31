@@ -1,5 +1,6 @@
 package com.github.wz2cool.localqueue;
 
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 
 /**
@@ -7,7 +8,7 @@ import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
  *
  * @author Frank
  */
-public interface IQueue {
+public interface IQueue extends AutoCloseable {
 
     /**
      * offer message to queue
@@ -16,6 +17,15 @@ public interface IQueue {
      * @return true if success
      */
     boolean offer(String message);
+
+    /**
+     * offer message to queue
+     *
+     * @param messageKey message key
+     * @param message    message
+     * @return true if success
+     */
+    boolean offer(String messageKey, String message);
 
     /**
      * get consumer
@@ -33,4 +43,16 @@ public interface IQueue {
      * @return consumer
      */
     IConsumer getConsumer(String consumerId, ConsumeFromWhere consumeFromWhere);
+
+    /**
+     * close queue
+     */
+    void close();
+
+    /**
+     * add close listener.
+     *
+     * @param listener close listener
+     */
+    void addCloseListener(CloseListener listener);
 }

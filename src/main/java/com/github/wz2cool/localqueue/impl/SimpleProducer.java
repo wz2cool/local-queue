@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,19 +28,20 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author frank
  */
-public class SimpleProducer implements IProducer, AutoCloseable {
+public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
-    private final LinkedBlockingQueue<String> messageCache = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
     // should only call by flushExecutor
     private final ExcerptAppender mainAppender;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
     private final Lock internalLock = new ReentrantLock();
+    private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
 
     private volatile boolean isFlushRunning = true;
     private volatile boolean isClosing = false;
@@ -67,14 +70,14 @@ public class SimpleProducer implements IProducer, AutoCloseable {
         isFlushRunning = false;
     }
 
-    private final List<String> tempFlushMessages = new ArrayList<>();
+    private final List<InternalWriteMessage> tempFlushMessages = new ArrayList<>();
 
     private void flushMessages(int batchSize) {
         try {
             logDebug("[flushInternal] start");
             if (tempFlushMessages.isEmpty()) {
                 // take 主要作用就是卡主线程
-                String firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
+                InternalWriteMessage firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
                 if (firstItem == null) {
                     return;
                 }
@@ -91,7 +94,7 @@ public class SimpleProducer implements IProducer, AutoCloseable {
         }
     }
 
-    private void flushMessages(final List<String> messages) {
+    private void flushMessages(final List<InternalWriteMessage> messages) {
         try {
             logDebug("[flushMessages] start");
             internalLock.lock();
@@ -99,12 +102,10 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 return;
             }
 
-            for (String message : messages) {
+            for (InternalWriteMessage message : messages) {
                 long writeTime = System.currentTimeMillis();
-                InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
-                internalWriteMessage.setWriteTime(writeTime);
-                internalWriteMessage.setContent(message);
-                mainAppender.writeBytes(internalWriteMessage);
+                message.setWriteTime(writeTime);
+                mainAppender.writeBytes(message);
             }
         } finally {
             internalLock.unlock();
@@ -117,7 +118,16 @@ public class SimpleProducer implements IProducer, AutoCloseable {
 
     @Override
     public boolean offer(String message) {
-        return this.messageCache.offer(message);
+        return offer(null, message);
+    }
+
+    @Override
+    public boolean offer(String messageKey, String message) {
+        InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
+        internalWriteMessage.setContent(message);
+        String useMessageKey = messageKey == null ? UUID.randomUUID().toString() : messageKey;
+        internalWriteMessage.setMessageKey(useMessageKey);
+        return this.messageCache.offer(internalWriteMessage);
     }
 
     /**
@@ -148,7 +158,9 @@ public class SimpleProducer implements IProducer, AutoCloseable {
             internalLock.lock();
             stopFlush();
             internalLock.unlock();
-            queue.close();
+            if (!queue.isClosed()) {
+                queue.close();
+            }
             flushExecutor.shutdown();
             scheduler.shutdown();
             try {
@@ -163,10 +175,18 @@ public class SimpleProducer implements IProducer, AutoCloseable {
                 flushExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            for (CloseListener closeListener : closeListeners) {
+                closeListener.onClose();
+            }
             isClosed = true;
         } finally {
             logDebug("[close] end");
         }
+    }
+
+    @Override
+    public void addCloseListener(CloseListener listener) {
+        closeListeners.add(listener);
     }
 
     private void cleanUpOldFiles(int keepDays) {

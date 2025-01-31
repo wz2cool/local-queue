@@ -7,7 +7,7 @@ import java.io.Serializable;
  *
  * @param <T> valueType
  */
-public interface IStore<T extends Serializable> {
+public interface IStore<T extends Serializable> extends AutoCloseable {
 
     /**
      * put key value
@@ -24,4 +24,9 @@ public interface IStore<T extends Serializable> {
      * @return value
      */
     T get(String key);
+
+    /**
+     * close store
+     */
+    void close();
 }

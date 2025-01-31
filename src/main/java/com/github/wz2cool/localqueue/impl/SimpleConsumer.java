@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IConsumer;
+import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
@@ -26,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author frank
  */
-public class SimpleConsumer implements IConsumer, AutoCloseable {
+public class SimpleConsumer implements IConsumer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final SimpleConsumerConfig config;
@@ -37,6 +38,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
     private final ExecutorService readCacheExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
+    private final ConcurrentLinkedQueue<CloseListener> closeListenerList = new ConcurrentLinkedQueue<>();
     private volatile long ackedReadPosition = -1;
     private volatile boolean isReadToCacheRunning = true;
     private volatile boolean isClosing = false;
@@ -161,6 +163,56 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         }
     }
 
+    @Override
+    public Optional<QueueMessage> get(final String messageKey) {
+        return get(messageKey, 0L, Long.MAX_VALUE);
+    }
+
+    @Override
+    public Optional<QueueMessage> get(final String messageKey, long searchTimestampStart, long searchTimestampEnd) {
+        if (messageKey == null || messageKey.isEmpty()) {
+            return Optional.empty();
+        }
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            while (true) {
+                // for performance, ignore read content.
+                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    return Optional.empty();
+                }
+                if (internalReadMessage.getWriteTime() < searchTimestampStart) {
+                    continue;
+                }
+                if (internalReadMessage.getWriteTime() > searchTimestampEnd) {
+                    return Optional.empty();
+                }
+                boolean moveToResult = tailer.moveToIndex(tailer.lastReadIndex());
+                if (!moveToResult) {
+                    return Optional.empty();
+                }
+                internalReadMessage = new InternalReadMessage();
+                readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    return Optional.empty();
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                if (Objects.equals(messageKey, queueMessage.getMessageKey())) {
+                    return Optional.of(queueMessage);
+                }
+            }
+        }
+    }
+
+    private QueueMessage toQueueMessage(final InternalReadMessage internalReadMessage, final long position) {
+        return new QueueMessage(
+                internalReadMessage.getMessageKey(),
+                positionVersion.get(),
+                position,
+                internalReadMessage.getContent(),
+                internalReadMessage.getWriteTime());
+    }
+
     private boolean moveToPositionInternal(final long position) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -182,7 +234,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
         try (ExcerptTailer excerptTailer = queue.createTailer()) {
             while (true) {
-                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
                 boolean resultResult = excerptTailer.readBytes(internalReadMessage);
                 if (resultResult) {
                     if (internalReadMessage.getWriteTime() >= timestamp) {
@@ -229,11 +281,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                         continue;
                     }
                     long lastedReadIndex = mainTailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(
-                            positionVersion.get(),
-                            lastedReadIndex,
-                            internalReadMessage.getContent(),
-                            internalReadMessage.getWriteTime());
+                    QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
                     boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
                     if (!offerResult) {
                         // if offer failed, move to last read position
@@ -310,8 +358,9 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
             this.internalLock.lock();
             stopReadToCache();
             this.internalLock.unlock();
-
-            positionStore.close();
+            if (!positionStore.isClosed()) {
+                positionStore.close();
+            }
             scheduler.shutdown();
             readCacheExecutor.shutdown();
             try {
@@ -326,11 +375,22 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                 readCacheExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
-            queue.close();
+            if (!queue.isClosed()) {
+                queue.close();
+            }
+
+            for (CloseListener closeListener : closeListenerList) {
+                closeListener.onClose();
+            }
             isClosed = true;
         } finally {
             logDebug("[close] end");
         }
+    }
+
+    @Override
+    public void addCloseListener(CloseListener listener) {
+        closeListenerList.add(listener);
     }
 
     private void logDebug(String format) {

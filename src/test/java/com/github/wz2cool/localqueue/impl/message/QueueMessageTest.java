@@ -3,6 +3,8 @@ package com.github.wz2cool.localqueue.impl.message;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -16,7 +18,7 @@ public class QueueMessageTest {
         Long position = 100L;
         String content = "Hello, World!";
         long writeTime = System.currentTimeMillis();
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
@@ -32,7 +34,7 @@ public class QueueMessageTest {
         Long position = 100L;
         String content = null;
         long writeTime = System.currentTimeMillis();
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
@@ -49,7 +51,7 @@ public class QueueMessageTest {
         String content = "Hello, World!";
         long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
@@ -66,7 +68,7 @@ public class QueueMessageTest {
         String content = "Hello, World!";
         long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
@@ -83,7 +85,7 @@ public class QueueMessageTest {
         String content = "Hello, World!";
         long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());
@@ -100,7 +102,7 @@ public class QueueMessageTest {
         String content = "Hello, World!";
         long writeTime = System.currentTimeMillis();
 
-        QueueMessage message = new QueueMessage(positionVersion, position, content, writeTime);
+        QueueMessage message = new QueueMessage(UUID.randomUUID().toString(), positionVersion, position, content, writeTime);
 
         // 验证字段是否正确
         assertEquals(positionVersion, message.getPositionVersion());

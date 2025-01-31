@@ -40,6 +40,9 @@ public class SimpleProducerTest {
     @Test
     public void testOfferToLocal() throws InterruptedException {
         try (SimpleProducer simpleProducer = new SimpleProducer(config)) {
+            simpleProducer.addCloseListener(() -> {
+                System.out.println("producer close");
+            });
             simpleProducer.offer("init");
             // make sure data write
             TimeUnit.MILLISECONDS.sleep(100);
