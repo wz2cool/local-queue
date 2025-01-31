@@ -2,8 +2,9 @@ package com.github.wz2cool.localqueue.model.message;
 
 public class BaseInternalMessage {
 
-    protected String content;
     protected long writeTime;
+    protected String messageKey;
+    protected String content;
 
     public String getContent() {
         return content;
@@ -19,5 +20,13 @@ public class BaseInternalMessage {
 
     public void setWriteTime(long writeTime) {
         this.writeTime = writeTime;
+    }
+
+    public String getMessageKey() {
+        return messageKey;
+    }
+
+    public void setMessageKey(String messageKey) {
+        this.messageKey = messageKey;
     }
 }

@@ -14,4 +14,13 @@ public interface IProducer {
      * @return true if success
      */
     boolean offer(String message);
+
+    /**
+     * offer message to queue.
+     *
+     * @param messageKey message key
+     * @param message    message
+     * @return true if success
+     */
+    boolean offer(String messageKey, String message);
 }

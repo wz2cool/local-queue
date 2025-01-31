@@ -88,5 +88,30 @@ public interface IConsumer {
      */
     boolean moveToPosition(long position);
 
+    /**
+     * move to timestamp.
+     *
+     * @param timestamp timestamp
+     * @return true if success
+     */
     boolean moveToTimestamp(long timestamp);
+
+    /**
+     * get message by messageKey.
+     * NOTE: if you want to get message by messageKey quickly, you should set searchTimestampStart and searchTimestampEnd.
+     *
+     * @param messageKey messageKey
+     * @return message
+     */
+    Optional<QueueMessage> get(String messageKey);
+
+    /**
+     * get message by messageKey.
+     *
+     * @param messageKey           messageKey
+     * @param searchTimestampStart search timestamp start
+     * @param searchTimestampEnd   search timestamp end
+     * @return message
+     */
+    Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
 }

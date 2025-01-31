@@ -161,6 +161,56 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         }
     }
 
+    @Override
+    public Optional<QueueMessage> get(final String messageKey) {
+        return get(messageKey, 0L, Long.MAX_VALUE);
+    }
+
+    @Override
+    public Optional<QueueMessage> get(final String messageKey, long searchTimestampStart, long searchTimestampEnd) {
+        if (messageKey == null || messageKey.isEmpty()) {
+            return Optional.empty();
+        }
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            while (true) {
+                // for performance, ignore read content.
+                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    return Optional.empty();
+                }
+                if (internalReadMessage.getWriteTime() < searchTimestampStart) {
+                    continue;
+                }
+                if (internalReadMessage.getWriteTime() > searchTimestampEnd) {
+                    return Optional.empty();
+                }
+                boolean moveToResult = tailer.moveToIndex(tailer.lastReadIndex());
+                if (!moveToResult) {
+                    return Optional.empty();
+                }
+                internalReadMessage = new InternalReadMessage();
+                readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    return Optional.empty();
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                if (Objects.equals(messageKey, queueMessage.getMessageKey())) {
+                    return Optional.of(queueMessage);
+                }
+            }
+        }
+    }
+
+    private QueueMessage toQueueMessage(final InternalReadMessage internalReadMessage, final long position) {
+        return new QueueMessage(
+                internalReadMessage.getMessageKey(),
+                positionVersion.get(),
+                position,
+                internalReadMessage.getContent(),
+                internalReadMessage.getWriteTime());
+    }
+
     private boolean moveToPositionInternal(final long position) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -182,7 +232,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
         try (ExcerptTailer excerptTailer = queue.createTailer()) {
             while (true) {
-                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
                 boolean resultResult = excerptTailer.readBytes(internalReadMessage);
                 if (resultResult) {
                     if (internalReadMessage.getWriteTime() >= timestamp) {
@@ -229,11 +279,7 @@ public class SimpleConsumer implements IConsumer, AutoCloseable {
                         continue;
                     }
                     long lastedReadIndex = mainTailer.lastReadIndex();
-                    QueueMessage queueMessage = new QueueMessage(
-                            positionVersion.get(),
-                            lastedReadIndex,
-                            internalReadMessage.getContent(),
-                            internalReadMessage.getWriteTime());
+                    QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
                     boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
                     if (!offerResult) {
                         // if offer failed, move to last read position
