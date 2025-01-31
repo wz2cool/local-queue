@@ -16,8 +16,11 @@ public class QueueMessage {
     /**
      * constructor
      *
-     * @param position position of queue
-     * @param content  content
+     * @param messageKey      message key
+     * @param positionVersion position version
+     * @param position        position of queue
+     * @param content         content
+     * @param writeTime       write time
      */
     public QueueMessage(String messageKey, int positionVersion, long position, String content, long writeTime) {
         this.messageKey = messageKey;
