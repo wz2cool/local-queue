@@ -36,7 +36,8 @@ public class SimpleQueueTest {
     }
 
     @AfterEach
-    public void cleanUp() throws IOException {
+    public void cleanUp() throws IOException, InterruptedException {
+        Thread.sleep(300);
         FileUtils.deleteDirectory(dir);
     }
 
@@ -120,5 +121,13 @@ public class SimpleQueueTest {
             assertTrue(messageOptional.isPresent());
             assertEquals("test1", messageOptional.get().getContent());
         }
+    }
+
+    @Test
+    public void multiCallClose() throws InterruptedException {
+        try (SimpleQueue queue = new SimpleQueue(config)) {
+            queue.close();
+        }
+        assertTrue(true, "no error return.");
     }
 }

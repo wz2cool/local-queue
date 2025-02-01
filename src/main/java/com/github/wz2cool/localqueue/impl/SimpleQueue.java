@@ -99,6 +99,7 @@ public class SimpleQueue implements IQueue {
         }
     }
 
+
     @Override
     public void addCloseListener(CloseListener listener) {
         closeListeners.add(listener);
@@ -108,13 +109,7 @@ public class SimpleQueue implements IQueue {
 
     private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
-            logDebug(format);
-        }
-    }
-
-    private void logDebug(String format, Object arg) {
-        if (logger.isDebugEnabled()) {
-            logDebug(format, arg);
+            logger.debug(format);
         }
     }
 
