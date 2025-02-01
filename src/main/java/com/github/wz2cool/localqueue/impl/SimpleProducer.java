@@ -60,7 +60,7 @@ public class SimpleProducer implements IProducer {
         return CompletableFuture.supplyAsync(this.queue::createAppender, this.flushExecutor).join();
     }
 
-    /// region flush to file
+    // region flush to file
     private void flush() {
         while (isFlushRunning && !isClosing) {
             flushMessages(config.getFlushBatchSize());
@@ -114,7 +114,7 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    /// endregion
+    // endregion
 
 
     @Override
@@ -140,7 +140,7 @@ public class SimpleProducer implements IProducer {
         return this.queue.lastIndex();
     }
 
-    /// region close
+    // region close
 
     /**
      * is closed.
@@ -155,6 +155,10 @@ public class SimpleProducer implements IProducer {
     public void close() {
         try {
             logDebug("[close] start");
+            if (isClosed) {
+                logDebug("[close] already closed");
+                return;
+            }
             isClosing = true;
             internalLock.lock();
             stopFlush();
@@ -225,7 +229,9 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    /// endregion
+    // endregion
+
+    // region logger
 
     private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
@@ -238,4 +244,6 @@ public class SimpleProducer implements IProducer {
             logDebug(format, arg);
         }
     }
+
+    // endregion
 }

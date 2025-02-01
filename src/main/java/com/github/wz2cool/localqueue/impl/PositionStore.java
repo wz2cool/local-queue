@@ -3,6 +3,8 @@ package com.github.wz2cool.localqueue.impl;
 import com.github.wz2cool.localqueue.IStore;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.map.ChronicleMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -15,6 +17,7 @@ import java.nio.file.Path;
  */
 public class PositionStore implements IStore<Long> {
 
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final ChronicleMap<String, Long> map;
 
     private volatile boolean isClosed = false;
@@ -56,9 +59,28 @@ public class PositionStore implements IStore<Long> {
 
     @Override
     public void close() {
-        if (!this.map.isClosed()) {
-            this.map.close();
+        try {
+            logDebug("[close] start");
+            if (this.isClosed) {
+                logDebug("[close] already closed");
+                return;
+            }
+            if (!this.map.isClosed()) {
+                this.map.close();
+            }
+            this.isClosed = true;
+        } finally {
+            logDebug("[close] end");
         }
-        this.isClosed = true;
     }
+
+    // region logger
+
+    private void logDebug(String format) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(format);
+        }
+    }
+
+    // endregion
 }

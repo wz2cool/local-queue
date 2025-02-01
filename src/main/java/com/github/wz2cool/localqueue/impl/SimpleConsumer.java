@@ -357,8 +357,12 @@ public class SimpleConsumer implements IConsumer {
 
     @Override
     public void close() {
-        logDebug("[close] start");
         try {
+            logDebug("[close] start");
+            if (isClosed) {
+                logDebug("[close] already closed");
+                return;
+            }
             isClosing = true;
             this.internalLock.lock();
             stopReadToCache();
@@ -407,6 +411,8 @@ public class SimpleConsumer implements IConsumer {
         closeListenerList.add(listener);
     }
 
+    // region logger
+
     private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
             logger.debug(format);
@@ -418,4 +424,6 @@ public class SimpleConsumer implements IConsumer {
             logger.debug(format, arg);
         }
     }
+
+    // endregion
 }
