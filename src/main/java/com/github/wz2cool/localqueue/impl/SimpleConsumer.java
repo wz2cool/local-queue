@@ -10,7 +10,6 @@ import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycle;
-import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimpleConsumer implements IConsumer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-    private final RollCycle defaultRollCycle = RollCycles.FAST_DAILY;
+    private final RollCycle defaultRollCycle;
     private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
     private final SingleChronicleQueue queue;
@@ -58,6 +57,7 @@ public class SimpleConsumer implements IConsumer {
         this.config = config;
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
+        this.defaultRollCycle = ChronicleQueueHelper.getRollCycle(config.getRollCycleType());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
         this.mainTailer = initMainTailer();
         startReadToCache();

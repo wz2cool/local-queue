@@ -2,12 +2,12 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.event.CloseListener;
+import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycle;
-import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-    private final RollCycle defaultRollCycle = RollCycles.FAST_DAILY;
+    private final RollCycle defaultRollCycle;
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
@@ -50,6 +50,7 @@ public class SimpleProducer implements IProducer {
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
+        this.defaultRollCycle = ChronicleQueueHelper.getRollCycle(config.getRollCycleType());
         this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
         this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);

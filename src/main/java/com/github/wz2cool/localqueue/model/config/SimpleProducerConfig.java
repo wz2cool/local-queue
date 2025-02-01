@@ -1,5 +1,7 @@
 package com.github.wz2cool.localqueue.model.config;
 
+import com.github.wz2cool.localqueue.model.enums.RollCycleType;
+
 import java.io.File;
 import java.util.Objects;
 
@@ -18,11 +20,14 @@ public class SimpleProducerConfig {
 
     private final long flushInterval;
 
+    private final RollCycleType rollCycleType;
+
     private SimpleProducerConfig(Builder builder) {
         this.dataDir = builder.dataDir;
         this.keepDays = builder.keepDays;
         this.flushBatchSize = builder.flushBatchSize;
         this.flushInterval = builder.flushInterval;
+        this.rollCycleType = builder.rollCycleType;
     }
 
     public File getDataDir() {
@@ -41,11 +46,16 @@ public class SimpleProducerConfig {
         return flushInterval;
     }
 
+    public RollCycleType getRollCycleType() {
+        return rollCycleType;
+    }
+
     public static class Builder {
         private File dataDir;
         private int keepDays = -1;
         private int flushBatchSize = 1000;
         private long flushInterval = 10;
+        private RollCycleType rollCycleType = RollCycleType.HOURLY;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;
@@ -64,6 +74,11 @@ public class SimpleProducerConfig {
 
         public Builder setFlushInterval(long flushInterval) {
             this.flushInterval = flushInterval;
+            return this;
+        }
+
+        public Builder setRollCycleType(RollCycleType rollCycleType) {
+            this.rollCycleType = rollCycleType;
             return this;
         }
 

@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.model.config;
 
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
+import com.github.wz2cool.localqueue.model.enums.RollCycleType;
 
 import java.io.File;
 import java.util.Objects;
@@ -23,6 +24,8 @@ public class SimpleConsumerConfig {
 
     private final ConsumeFromWhere consumeFromWhere;
 
+    private final RollCycleType rollCycleType;
+
     private SimpleConsumerConfig(final Builder builder) {
         this.dataDir = builder.dataDir;
         this.positionFile = builder.positionFile;
@@ -32,6 +35,7 @@ public class SimpleConsumerConfig {
         this.cacheSize = builder.cacheSize;
         this.flushPositionInterval = builder.flushPositionInterval;
         this.consumeFromWhere = builder.consumeFromWhere;
+        this.rollCycleType = builder.rollCycleType;
     }
 
     public File getDataDir() {
@@ -62,6 +66,10 @@ public class SimpleConsumerConfig {
         return consumeFromWhere;
     }
 
+    public RollCycleType getRollCycleType() {
+        return rollCycleType;
+    }
+
     public long getFillCacheInterval() {
         return fillCacheInterval;
     }
@@ -83,6 +91,8 @@ public class SimpleConsumerConfig {
         private long flushPositionInterval = 100;
 
         private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.LAST;
+
+        private RollCycleType rollCycleType = RollCycleType.HOURLY;
 
         public Builder setDataDir(File dataDir) {
             this.dataDir = dataDir;
@@ -116,6 +126,11 @@ public class SimpleConsumerConfig {
 
         public Builder setConsumeFromWhere(ConsumeFromWhere consumeFromWhere) {
             this.consumeFromWhere = consumeFromWhere;
+            return this;
+        }
+
+        public Builder setRollCycleType(RollCycleType rollCycleType) {
+            this.rollCycleType = rollCycleType;
             return this;
         }
 

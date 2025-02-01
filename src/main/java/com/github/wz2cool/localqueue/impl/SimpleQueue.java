@@ -48,6 +48,7 @@ public class SimpleQueue implements IQueue {
         return new SimpleProducer(new SimpleProducerConfig.Builder()
                 .setDataDir(config.getDataDir())
                 .setKeepDays(config.getKeepDays())
+                .setRollCycleType(config.getRollCycleType())
                 .build());
     }
 
@@ -67,6 +68,7 @@ public class SimpleQueue implements IQueue {
                 .setDataDir(config.getDataDir())
                 .setConsumerId(consumerId)
                 .setConsumeFromWhere(consumeFromWhere)
+                .setRollCycleType(config.getRollCycleType())
                 .build());
         consumer.addCloseListener(() -> consumerMap.remove(consumerId));
         consumerMap.put(consumerId, consumer);
