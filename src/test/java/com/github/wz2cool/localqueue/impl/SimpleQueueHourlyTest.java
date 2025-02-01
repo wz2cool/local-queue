@@ -3,6 +3,7 @@ package com.github.wz2cool.localqueue.impl;
 import com.github.wz2cool.localqueue.IConsumer;
 import com.github.wz2cool.localqueue.model.config.SimpleQueueConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
+import com.github.wz2cool.localqueue.model.enums.RollCycleType;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import net.openhft.chronicle.queue.RollCycles;
 import org.apache.commons.io.FileUtils;
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings("all")
-public class SimpleQueueTest {
+public class SimpleQueueHourlyTest {
 
     private File dir;
     private SimpleQueueConfig config;
@@ -32,11 +33,13 @@ public class SimpleQueueTest {
         config = new SimpleQueueConfig.Builder()
                 .setDataDir(dir)
                 .setKeepDays(1)
+                .setRollCycleType(RollCycleType.HOURLY)
                 .build();
     }
 
     @AfterEach
-    public void cleanUp() throws IOException {
+    public void cleanUp() throws IOException, InterruptedException {
+        Thread.sleep(300);
         FileUtils.deleteDirectory(dir);
     }
 
@@ -120,5 +123,13 @@ public class SimpleQueueTest {
             assertTrue(messageOptional.isPresent());
             assertEquals("test1", messageOptional.get().getContent());
         }
+    }
+
+    @Test
+    public void multiCallClose() throws InterruptedException {
+        try (SimpleQueue queue = new SimpleQueue(config)) {
+            queue.close();
+        }
+        assertTrue(true, "no error return.");
     }
 }

@@ -34,6 +34,7 @@ public class SimpleProducerTest {
 
     @AfterEach
     public void cleanUp() throws IOException, InterruptedException {
+        Thread.sleep(300);
         FileUtils.deleteDirectory(dir);
     }
 

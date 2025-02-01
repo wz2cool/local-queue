@@ -2,11 +2,13 @@ package com.github.wz2cool.localqueue.impl;
 
 import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.event.CloseListener;
+import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
+import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
-import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.RollCycle;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +33,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-
+    private final RollCycle defaultRollCycle;
+    private final TimeProvider timeProvider;
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
@@ -49,7 +52,12 @@ public class SimpleProducer implements IProducer {
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
-        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(RollCycles.FAST_DAILY).build();
+        this.timeProvider = ChronicleQueueHelper.getTimeProvider(config.getTimeZone());
+        this.defaultRollCycle = ChronicleQueueHelper.getRollCycle(config.getRollCycleType());
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir())
+                .rollCycle(defaultRollCycle)
+                .timeProvider(timeProvider)
+                .build();
         this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);
@@ -59,7 +67,7 @@ public class SimpleProducer implements IProducer {
         return CompletableFuture.supplyAsync(this.queue::createAppender, this.flushExecutor).join();
     }
 
-    /// region flush to file
+    // region flush to file
     private void flush() {
         while (isFlushRunning && !isClosing) {
             flushMessages(config.getFlushBatchSize());
@@ -113,7 +121,7 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    /// endregion
+    // endregion
 
 
     @Override
@@ -139,7 +147,7 @@ public class SimpleProducer implements IProducer {
         return this.queue.lastIndex();
     }
 
-    /// region close
+    // region close
 
     /**
      * is closed.
@@ -154,6 +162,10 @@ public class SimpleProducer implements IProducer {
     public void close() {
         try {
             logDebug("[close] start");
+            if (isClosed) {
+                logDebug("[close] already closed");
+                return;
+            }
             isClosing = true;
             internalLock.lock();
             stopFlush();
@@ -224,7 +236,9 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    /// endregion
+    // endregion
+
+    // region logger
 
     private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
@@ -237,4 +251,6 @@ public class SimpleProducer implements IProducer {
             logDebug(format, arg);
         }
     }
+
+    // endregion
 }
