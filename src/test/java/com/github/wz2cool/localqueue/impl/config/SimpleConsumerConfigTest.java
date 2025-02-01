@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue.impl.config;
 
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,6 +15,19 @@ public class SimpleConsumerConfigTest {
 
     @TempDir
     File tempDir;
+
+
+    private File dataDir;
+    private File positionFile;
+    private String consumerId;
+
+
+    @BeforeEach
+    public void setUp() throws Exception {
+        dataDir = tempDir;
+        positionFile = new File(dataDir, "position.dat");
+        consumerId = "consumerId";
+    }
 
     @Test
     public void testBuilder() {
@@ -201,5 +215,121 @@ public class SimpleConsumerConfigTest {
                 .build();
 
         assertEquals(100, config.getFlushPositionInterval());
+    }
+
+    @Test
+    public void build_ValidConfig_ShouldCreateConfig() {
+        SimpleConsumerConfig config = new SimpleConsumerConfig.Builder()
+                .setDataDir(dataDir)
+                .setPositionFile(positionFile)
+                .setConsumerId(consumerId)
+                .build();
+
+        assertEquals(dataDir, config.getDataDir());
+        assertEquals(positionFile, config.getPositionFile());
+        assertEquals(consumerId, config.getConsumerId());
+    }
+
+    @Test
+    public void build_NullDataDir_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(null)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_NullConsumerId_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(null)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_EmptyConsumerId_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId("")
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_NegativeCacheSize_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .setCacheSize(-1)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_ZeroFlushPositionInterval_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .setFlushPositionInterval(0)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_NullPositionFile_ShouldUseDefault() {
+        SimpleConsumerConfig config = new SimpleConsumerConfig.Builder()
+                .setDataDir(dataDir)
+                .setConsumerId(consumerId)
+                .build();
+
+        assertEquals(new File(dataDir, "position.dat"), config.getPositionFile());
+    }
+
+    @Test
+    public void build_NullConsumeFromWhere_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .setConsumeFromWhere(null)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_NegativePullInterval_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .setPullInterval(-1)
+                    .build();
+        });
+    }
+
+    @Test
+    public void build_NegativeFillCacheInterval_ShouldThrowException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new SimpleConsumerConfig.Builder()
+                    .setDataDir(dataDir)
+                    .setPositionFile(positionFile)
+                    .setConsumerId(consumerId)
+                    .setFillCacheInterval(-1)
+                    .build();
+        });
     }
 }
