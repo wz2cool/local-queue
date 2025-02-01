@@ -5,6 +5,7 @@ import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
+import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycle;
@@ -33,6 +34,7 @@ public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final RollCycle defaultRollCycle;
+    private final TimeProvider timeProvider;
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
     private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
@@ -50,8 +52,12 @@ public class SimpleProducer implements IProducer {
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
+        this.timeProvider = ChronicleQueueHelper.getTimeProvider(config.getTimeZone());
         this.defaultRollCycle = ChronicleQueueHelper.getRollCycle(config.getRollCycleType());
-        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir())
+                .rollCycle(defaultRollCycle)
+                .timeProvider(timeProvider)
+                .build();
         this.mainAppender = initMainAppender();
         flushExecutor.execute(this::flush);
         scheduler.scheduleAtFixedRate(() -> cleanUpOldFiles(config.getKeepDays()), 0, 1, TimeUnit.HOURS);

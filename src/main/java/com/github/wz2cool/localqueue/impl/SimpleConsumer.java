@@ -7,6 +7,7 @@ import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycle;
@@ -32,6 +33,7 @@ public class SimpleConsumer implements IConsumer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final RollCycle defaultRollCycle;
+    private final TimeProvider timeProvider;
     private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
     private final SingleChronicleQueue queue;
@@ -55,10 +57,14 @@ public class SimpleConsumer implements IConsumer {
      */
     public SimpleConsumer(final SimpleConsumerConfig config) {
         this.config = config;
+        this.timeProvider = ChronicleQueueHelper.getTimeProvider(config.getTimeZone());
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
         this.defaultRollCycle = ChronicleQueueHelper.getRollCycle(config.getRollCycleType());
-        this.queue = ChronicleQueue.singleBuilder(config.getDataDir()).rollCycle(defaultRollCycle).build();
+        this.queue = ChronicleQueue.singleBuilder(config.getDataDir())
+                .timeProvider(timeProvider)
+                .rollCycle(defaultRollCycle)
+                .build();
         this.mainTailer = initMainTailer();
         startReadToCache();
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
@@ -398,7 +404,7 @@ public class SimpleConsumer implements IConsumer {
     }
 
     private void moveToNearByTimestamp(ExcerptTailer tailer, long timestamp) {
-        int expectedCycle = ChronicleQueueHelper.cycle(defaultRollCycle, timestamp);
+        int expectedCycle = ChronicleQueueHelper.cycle(defaultRollCycle, timeProvider, timestamp);
         int currentCycle = tailer.cycle();
         if (currentCycle != expectedCycle) {
             boolean moveToCycleResult = tailer.moveToCycle(expectedCycle);

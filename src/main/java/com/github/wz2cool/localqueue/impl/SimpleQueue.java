@@ -49,6 +49,7 @@ public class SimpleQueue implements IQueue {
                 .setDataDir(config.getDataDir())
                 .setKeepDays(config.getKeepDays())
                 .setRollCycleType(config.getRollCycleType())
+                .setTimeZone(config.getTimeZone())
                 .build());
     }
 
@@ -69,6 +70,7 @@ public class SimpleQueue implements IQueue {
                 .setConsumerId(consumerId)
                 .setConsumeFromWhere(consumeFromWhere)
                 .setRollCycleType(config.getRollCycleType())
+                .setTimeZone(config.getTimeZone())
                 .build());
         consumer.addCloseListener(() -> consumerMap.remove(consumerId));
         consumerMap.put(consumerId, consumer);
