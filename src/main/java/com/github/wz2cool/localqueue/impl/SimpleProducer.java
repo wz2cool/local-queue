@@ -154,6 +154,7 @@ public class SimpleProducer implements IProducer {
      *
      * @return true if the Producer is closed, false otherwise.
      */
+    @Override
     public boolean isClosed() {
         return isClosed;
     }
@@ -162,8 +163,8 @@ public class SimpleProducer implements IProducer {
     public void close() {
         try {
             logDebug("[close] start");
-            if (isClosed) {
-                logDebug("[close] already closed");
+            if (isClosing) {
+                logDebug("[close] is closing");
                 return;
             }
             isClosing = true;

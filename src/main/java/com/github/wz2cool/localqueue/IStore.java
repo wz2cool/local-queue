@@ -10,6 +10,13 @@ import java.io.Serializable;
 public interface IStore<T extends Serializable> extends AutoCloseable {
 
     /**
+     * is store closed
+     *
+     * @return is store closed
+     */
+    boolean isClosed();
+
+    /**
      * put key value
      *
      * @param key   key

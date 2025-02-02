@@ -27,6 +27,7 @@ public class SimpleQueue implements IQueue {
     private final SimpleProducer simpleProducer;
     private final Map<String, SimpleConsumer> consumerMap = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
+    private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
 
     public SimpleQueue(SimpleQueueConfig config) {
@@ -42,6 +43,11 @@ public class SimpleQueue implements IQueue {
     @Override
     public boolean offer(String messageKey, String message) {
         return simpleProducer.offer(messageKey, message);
+    }
+
+    @Override
+    public boolean isClosed() {
+        return isClosed;
     }
 
     private SimpleProducer getProducer() {
@@ -81,10 +87,11 @@ public class SimpleQueue implements IQueue {
     public void close() {
         try {
             logDebug("[close] start");
-            if (isClosed) {
-                logDebug("[close] already closed");
+            if (isClosing) {
+                logDebug("[close] is closing");
                 return;
             }
+            isClosing = true;
             if (!simpleProducer.isClosed()) {
                 simpleProducer.close();
             }

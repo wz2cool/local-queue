@@ -264,6 +264,7 @@ public class SimpleConsumer implements IConsumer {
         return ackedReadPosition;
     }
 
+    @Override
     public boolean isClosed() {
         return isClosed;
     }
@@ -365,8 +366,8 @@ public class SimpleConsumer implements IConsumer {
     public void close() {
         try {
             logDebug("[close] start");
-            if (isClosed) {
-                logDebug("[close] already closed");
+            if (isClosing) {
+                logDebug("[close] is closing");
                 return;
             }
             isClosing = true;

@@ -20,6 +20,7 @@ public class PositionStore implements IStore<Long> {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final ChronicleMap<String, Long> map;
 
+    private volatile boolean isClosing = false;
     private volatile boolean isClosed = false;
 
     /**
@@ -43,6 +44,7 @@ public class PositionStore implements IStore<Long> {
         }
     }
 
+    @Override
     public boolean isClosed() {
         return this.isClosed;
     }
@@ -61,10 +63,11 @@ public class PositionStore implements IStore<Long> {
     public void close() {
         try {
             logDebug("[close] start");
-            if (this.isClosed) {
-                logDebug("[close] already closed");
+            if (isClosing) {
+                logDebug("[close] is closing");
                 return;
             }
+            isClosing = true;
             if (!this.map.isClosed()) {
                 this.map.close();
             }

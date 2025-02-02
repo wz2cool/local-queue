@@ -117,6 +117,13 @@ public interface IConsumer extends AutoCloseable {
     Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
 
     /**
+     * is closed
+     *
+     * @return true if closed
+     */
+    boolean isClosed();
+
+    /**
      * close consumer.
      */
     void close();

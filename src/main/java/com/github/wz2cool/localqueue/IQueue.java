@@ -50,6 +50,13 @@ public interface IQueue extends AutoCloseable {
     void close();
 
     /**
+     * is queue closed
+     *
+     * @return true if closed
+     */
+    boolean isClosed();
+
+    /**
      * add close listener.
      *
      * @param listener close listener
