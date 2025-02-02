@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -46,9 +47,10 @@ public class SimpleProducer implements IProducer {
     private final Lock internalLock = new ReentrantLock();
     private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
 
-    private volatile boolean isFlushRunning = true;
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+    private final AtomicBoolean isFlushRunning = new AtomicBoolean(true);
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final Object closeLocker = new Object();
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
@@ -69,13 +71,13 @@ public class SimpleProducer implements IProducer {
 
     // region flush to file
     private void flush() {
-        while (isFlushRunning && !isClosing) {
+        while (isFlushRunning.get() && !isClosing.get()) {
             flushMessages(config.getFlushBatchSize());
         }
     }
 
     private void stopFlush() {
-        isFlushRunning = false;
+        isFlushRunning.set(false);
     }
 
     private final List<InternalWriteMessage> tempFlushMessages = new ArrayList<>();
@@ -106,7 +108,7 @@ public class SimpleProducer implements IProducer {
         try {
             logDebug("[flushMessages] start");
             internalLock.lock();
-            if (!isFlushRunning || isClosing) {
+            if (!isFlushRunning.get() || isClosing.get()) {
                 return;
             }
 
@@ -156,44 +158,46 @@ public class SimpleProducer implements IProducer {
      */
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return isClosed.get();
     }
 
     @Override
     public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosing) {
-                logDebug("[close] is closing");
-                return;
-            }
-            isClosing = true;
-            internalLock.lock();
-            stopFlush();
-            internalLock.unlock();
-            if (!queue.isClosed()) {
-                queue.close();
-            }
-            flushExecutor.shutdown();
-            scheduler.shutdown();
+        synchronized (closeLocker) {
             try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
+                }
+                isClosing.set(true);
+                internalLock.lock();
+                stopFlush();
+                internalLock.unlock();
+                if (!queue.isClosed()) {
+                    queue.close();
+                }
+                flushExecutor.shutdown();
+                scheduler.shutdown();
+                try {
+                    if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                        scheduler.shutdownNow();
+                    }
+                    if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                        flushExecutor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
                     scheduler.shutdownNow();
-                }
-                if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                     flushExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
                 }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                flushExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
+                for (CloseListener closeListener : closeListeners) {
+                    closeListener.onClose();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            for (CloseListener closeListener : closeListeners) {
-                closeListener.onClose();
-            }
-            isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 
@@ -227,6 +231,7 @@ public class SimpleProducer implements IProducer {
         }
     }
 
+
     private void cleanUpOldFile(final File file, final LocalDate keepDate) throws IOException {
         String fileName = file.getName();
         String dateString = fileName.substring(0, 8);
@@ -240,16 +245,16 @@ public class SimpleProducer implements IProducer {
     // endregion
 
     // region logger
-
-    private void logDebug(String format) {
+    private void logDebug(String format, String arg) {
         if (logger.isDebugEnabled()) {
-            logDebug(format);
+            logger.debug(format, arg);
         }
     }
 
-    private void logDebug(String format, Object arg) {
+
+    private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
-            logDebug(format, arg);
+            logger.debug(format);
         }
     }
 

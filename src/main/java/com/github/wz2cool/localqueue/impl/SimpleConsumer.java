@@ -20,7 +20,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -43,10 +45,11 @@ public class SimpleConsumer implements IConsumer {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
     private final ConcurrentLinkedQueue<CloseListener> closeListenerList = new ConcurrentLinkedQueue<>();
-    private volatile long ackedReadPosition = -1;
-    private volatile boolean isReadToCacheRunning = true;
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+    private final AtomicLong ackedReadPosition = new AtomicLong(-1);
+    private final AtomicBoolean isReadToCacheRunning = new AtomicBoolean(true);
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final Object closeLocker = new Object();
     private final AtomicInteger positionVersion = new AtomicInteger(0);
     private final Lock internalLock = new ReentrantLock();
 
@@ -123,8 +126,7 @@ public class SimpleConsumer implements IConsumer {
         if (message.getPositionVersion() != positionVersion.get()) {
             return;
         }
-
-        this.ackedReadPosition = message.getPosition();
+        ackedReadPosition.set(message.getPosition());
     }
 
     @Override
@@ -136,7 +138,7 @@ public class SimpleConsumer implements IConsumer {
         if (lastOne.getPositionVersion() != positionVersion.get()) {
             return;
         }
-        this.ackedReadPosition = lastOne.getPosition();
+        ackedReadPosition.set(lastOne.getPosition());
     }
 
     @Override
@@ -231,7 +233,7 @@ public class SimpleConsumer implements IConsumer {
                 if (moveToResult) {
                     positionVersion.incrementAndGet();
                     messageCache.clear();
-                    this.ackedReadPosition = position;
+                    ackedReadPosition.set(position);
                 }
                 return moveToResult;
             } finally {
@@ -261,20 +263,20 @@ public class SimpleConsumer implements IConsumer {
     }
 
     public long getAckedReadPosition() {
-        return ackedReadPosition;
+        return ackedReadPosition.get();
     }
 
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return isClosed.get();
     }
 
     private void stopReadToCache() {
-        this.isReadToCacheRunning = false;
+        isReadToCacheRunning.set(false);
     }
 
     private void startReadToCache() {
-        this.isReadToCacheRunning = true;
+        this.isReadToCacheRunning.set(true);
         readCacheExecutor.execute(this::readToCache);
     }
 
@@ -284,7 +286,7 @@ public class SimpleConsumer implements IConsumer {
             internalLock.lock();
             long pullInterval = config.getPullInterval();
             long fillCacheInterval = config.getFillCacheInterval();
-            while (this.isReadToCacheRunning && !isClosing) {
+            while (isReadToCacheRunning.get() && !isClosing.get()) {
                 try {
                     InternalReadMessage internalReadMessage = new InternalReadMessage();
                     boolean readResult = mainTailer.readBytes(internalReadMessage);
@@ -343,17 +345,13 @@ public class SimpleConsumer implements IConsumer {
     /// region position
 
     private void flushPosition() {
-        if (ackedReadPosition != -1) {
-            setLastPosition(this.ackedReadPosition);
+        if (ackedReadPosition.get() != -1) {
+            setLastPosition(this.ackedReadPosition.get());
         }
     }
 
     private Optional<Long> getLastPosition() {
-        Long position = positionStore.get(config.getConsumerId());
-        if (position == null) {
-            return Optional.empty();
-        }
-        return Optional.of(position);
+        return positionStore.get(config.getConsumerId());
     }
 
     private void setLastPosition(long position) {
@@ -364,43 +362,45 @@ public class SimpleConsumer implements IConsumer {
 
     @Override
     public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosing) {
-                logDebug("[close] is closing");
-                return;
-            }
-            isClosing = true;
-            this.internalLock.lock();
-            stopReadToCache();
-            this.internalLock.unlock();
-            if (!positionStore.isClosed()) {
-                positionStore.close();
-            }
-            scheduler.shutdown();
-            readCacheExecutor.shutdown();
+        synchronized (closeLocker) {
             try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
+                }
+                isClosing.set(true);
+                this.internalLock.lock();
+                stopReadToCache();
+                this.internalLock.unlock();
+                if (!positionStore.isClosed()) {
+                    positionStore.close();
+                }
+                scheduler.shutdown();
+                readCacheExecutor.shutdown();
+                try {
+                    if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                        scheduler.shutdownNow();
+                    }
+                    if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                        readCacheExecutor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
                     scheduler.shutdownNow();
-                }
-                if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                     readCacheExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
                 }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                readCacheExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            if (!queue.isClosed()) {
-                queue.close();
-            }
+                if (!queue.isClosed()) {
+                    queue.close();
+                }
 
-            for (CloseListener closeListener : closeListenerList) {
-                closeListener.onClose();
+                for (CloseListener closeListener : closeListenerList) {
+                    closeListener.onClose();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 

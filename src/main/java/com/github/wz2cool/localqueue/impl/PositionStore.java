@@ -9,19 +9,22 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 位置存储
  *
  * @author frank
  */
-public class PositionStore implements IStore<Long> {
+public class PositionStore implements IStore<String, Long> {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final ChronicleMap<String, Long> map;
 
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final Object closeLocker = new Object();
 
     /**
      * 构造函数
@@ -46,34 +49,42 @@ public class PositionStore implements IStore<Long> {
 
     @Override
     public boolean isClosed() {
-        return this.isClosed;
+        return this.isClosed.get();
     }
 
     @Override
     public void put(String key, Long value) {
+        if (isClosing.get()) {
+            throw new IORuntimeException("PositionStore is closing");
+        }
         this.map.put(key, value);
     }
 
     @Override
-    public Long get(String key) {
-        return this.map.get(key);
+    public Optional<Long> get(String key) {
+        if (isClosing.get()) {
+            throw new IORuntimeException("PositionStore is closing");
+        }
+        return Optional.ofNullable(this.map.get(key));
     }
 
     @Override
-    public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosing) {
-                logDebug("[close] is closing");
-                return;
+    public synchronized void close() {
+        synchronized (closeLocker) {
+            try {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
+                }
+                isClosing.set(true);
+                if (!this.map.isClosed()) {
+                    this.map.close();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            isClosing = true;
-            if (!this.map.isClosed()) {
-                this.map.close();
-            }
-            this.isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 

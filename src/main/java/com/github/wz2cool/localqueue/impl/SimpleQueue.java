@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * simple queue
@@ -27,8 +28,10 @@ public class SimpleQueue implements IQueue {
     private final SimpleProducer simpleProducer;
     private final Map<String, SimpleConsumer> consumerMap = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+
+    private final Object closeLocker = new Object();
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     public SimpleQueue(SimpleQueueConfig config) {
         this.config = config;
@@ -47,7 +50,7 @@ public class SimpleQueue implements IQueue {
 
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return isClosed.get();
     }
 
     private SimpleProducer getProducer() {
@@ -78,35 +81,40 @@ public class SimpleQueue implements IQueue {
                 .setRollCycleType(config.getRollCycleType())
                 .setTimeZone(config.getTimeZone())
                 .build());
-        consumer.addCloseListener(() -> consumerMap.remove(consumerId));
+        consumer.addCloseListener(() -> {
+            SimpleConsumer removeItem = consumerMap.remove(consumerId);
+            removeItem.close();
+        });
         consumerMap.put(consumerId, consumer);
         return consumer;
     }
 
     @Override
     public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosing) {
-                logDebug("[close] is closing");
-                return;
-            }
-            isClosing = true;
-            if (!simpleProducer.isClosed()) {
-                simpleProducer.close();
-            }
-            for (Map.Entry<String, SimpleConsumer> entry : consumerMap.entrySet()) {
-                SimpleConsumer consumer = entry.getValue();
-                if (!consumer.isClosed()) {
-                    entry.getValue().close();
+        synchronized (closeLocker) {
+            try {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
                 }
+                isClosing.set(true);
+                if (!simpleProducer.isClosed()) {
+                    simpleProducer.close();
+                }
+                for (Map.Entry<String, SimpleConsumer> entry : consumerMap.entrySet()) {
+                    SimpleConsumer consumer = entry.getValue();
+                    if (!consumer.isClosed()) {
+                        entry.getValue().close();
+                    }
+                }
+                for (CloseListener listener : closeListeners) {
+                    listener.onClose();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            for (CloseListener listener : closeListeners) {
-                listener.onClose();
-            }
-            isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 
