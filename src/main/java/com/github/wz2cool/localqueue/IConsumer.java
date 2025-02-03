@@ -2,6 +2,9 @@ package com.github.wz2cool.localqueue;
 
 import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import com.github.wz2cool.localqueue.model.page.PageInfo;
+import com.github.wz2cool.localqueue.model.page.SortDirection;
+import com.github.wz2cool.localqueue.model.page.UpDown;
 
 import java.util.List;
 import java.util.Optional;
@@ -141,4 +144,23 @@ public interface IConsumer extends AutoCloseable {
      * @param listener close listener
      */
     void addCloseListener(CloseListener listener);
+
+    /**
+     * get latest page.
+     *
+     * @param pageSize page size
+     * @return page info
+     */
+    PageInfo<QueueMessage> getPage(SortDirection sortDirection, int pageSize);
+
+    /**
+     * get page by position.
+     *
+     * @param moveToPosition start position
+     * @param pageSize       page size
+     * @return page info
+     */
+    PageInfo<QueueMessage> getPage(long moveToPosition, SortDirection sortDirection, int pageSize);
+
+    PageInfo<QueueMessage> getPage(PageInfo<QueueMessage> prevPageInfo, UpDown upDown);
 }

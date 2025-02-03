@@ -7,10 +7,14 @@ import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import com.github.wz2cool.localqueue.model.page.PageInfo;
+import com.github.wz2cool.localqueue.model.page.SortDirection;
+import com.github.wz2cool.localqueue.model.page.UpDown;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycle;
+import net.openhft.chronicle.queue.TailerDirection;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -374,6 +378,7 @@ public class SimpleConsumer implements IConsumer {
 
     /// endregion
 
+    @SuppressWarnings("Duplicates")
     @Override
     public void close() {
         synchronized (closeLocker) {
@@ -429,6 +434,108 @@ public class SimpleConsumer implements IConsumer {
     public void addCloseListener(CloseListener listener) {
         closeListenerList.add(listener);
     }
+
+
+    // region page
+
+    @Override
+    public PageInfo<QueueMessage> getPage(SortDirection sortDirection, int pageSize) {
+        return getPage(-1, sortDirection, pageSize);
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Override
+    public PageInfo<QueueMessage> getPage(long moveToPosition, SortDirection sortDirection, int pageSize) {
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            if (moveToPosition != -1) {
+                tailer.moveToIndex(moveToPosition);
+            }
+            if (sortDirection == SortDirection.DESC) {
+                tailer.toEnd();
+                tailer.direction(TailerDirection.BACKWARD);
+            }
+            List<QueueMessage> data = new ArrayList<>();
+            long start = -1;
+            long end = -1;
+            for (int i = 0; i < pageSize; i++) {
+                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    break;
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                data.add(queueMessage);
+                if (i == 0) {
+                    start = tailer.lastReadIndex();
+                }
+                end = tailer.lastReadIndex();
+            }
+            return new PageInfo<>(start, end, data, sortDirection, pageSize);
+        }
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Override
+    public PageInfo<QueueMessage> getPage(PageInfo<QueueMessage> prevPageInfo, UpDown upDown) {
+        SortDirection sortDirection = prevPageInfo.getSortDirection();
+        int pageSize = prevPageInfo.getPageSize();
+        long start = prevPageInfo.getStart();
+        long end = prevPageInfo.getEnd();
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            TailerDirection tailerDirection = getTailerDirection(sortDirection, upDown);
+            tailer.direction(tailerDirection);
+            if (sortDirection == SortDirection.DESC) {
+                if (upDown == UpDown.DOWN) {
+                    tailer.moveToIndex(end - 1);
+                } else {
+                    tailer.moveToIndex(start + 1);
+                }
+            } else {
+                if (upDown == UpDown.DOWN) {
+                    tailer.moveToIndex(end + 1);
+                } else {
+                    tailer.moveToIndex(start - 1);
+                }
+            }
+            List<QueueMessage> data = new ArrayList<>();
+            for (int i = 0; i < pageSize; i++) {
+                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    break;
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                data.add(queueMessage);
+                if (i == 0) {
+                    start = tailer.lastReadIndex();
+                }
+                end = tailer.lastReadIndex();
+            }
+            if (upDown == UpDown.UP) {
+                Collections.reverse(data);
+            }
+            return new PageInfo<>(start, end, data, sortDirection, pageSize);
+        }
+    }
+
+    private TailerDirection getTailerDirection(SortDirection sortDirection, UpDown upDown) {
+        if (sortDirection == SortDirection.DESC && upDown == UpDown.DOWN) {
+            return TailerDirection.BACKWARD;
+        }
+        if (sortDirection == SortDirection.DESC && upDown == UpDown.UP) {
+            return TailerDirection.FORWARD;
+        }
+        if (sortDirection == SortDirection.ASC && upDown == UpDown.DOWN) {
+            return TailerDirection.FORWARD;
+        }
+        if (sortDirection == SortDirection.ASC && upDown == UpDown.UP) {
+            return TailerDirection.BACKWARD;
+        }
+        return TailerDirection.FORWARD;
+    }
+
+
+    // endregion
 
     // region logger
 

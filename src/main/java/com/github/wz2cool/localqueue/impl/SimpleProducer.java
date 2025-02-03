@@ -20,7 +20,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -134,8 +133,7 @@ public class SimpleProducer implements IProducer {
     public boolean offer(String messageKey, String message) {
         InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
         internalWriteMessage.setContent(message);
-        String useMessageKey = messageKey == null ? UUID.randomUUID().toString() : messageKey;
-        internalWriteMessage.setMessageKey(useMessageKey);
+        internalWriteMessage.setMessageKey(messageKey);
         return this.messageCache.offer(internalWriteMessage);
     }
 
