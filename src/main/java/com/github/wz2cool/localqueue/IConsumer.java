@@ -97,6 +97,13 @@ public interface IConsumer extends AutoCloseable {
      */
     boolean moveToTimestamp(long timestamp);
 
+    /**
+     * get message by position.
+     *
+     * @param position position
+     * @return message
+     */
+    Optional<QueueMessage> get(long position);
 
     /**
      * get message by messageKey.
@@ -107,6 +114,14 @@ public interface IConsumer extends AutoCloseable {
      * @return message
      */
     Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
+
+    /**
+     * find position by timestamp.
+     *
+     * @param timestamp timestamp
+     * @return position
+     */
+    Optional<Long> findPosition(long timestamp);
 
     /**
      * is closed

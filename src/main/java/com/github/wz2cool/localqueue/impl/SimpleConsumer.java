@@ -15,10 +15,7 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -168,6 +165,23 @@ public class SimpleConsumer implements IConsumer {
     }
 
     @Override
+    public Optional<QueueMessage> get(final long position) {
+        if (position < 0) {
+            return Optional.empty();
+        }
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            tailer.moveToIndex(position);
+            InternalReadMessage internalReadMessage = new InternalReadMessage();
+            boolean readResult = tailer.readBytes(internalReadMessage);
+            if (readResult) {
+                return Optional.of(toQueueMessage(internalReadMessage, position));
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
+
+    @Override
     public Optional<QueueMessage> get(final String messageKey, long searchTimestampStart, long searchTimestampEnd) {
         if (messageKey == null || messageKey.isEmpty()) {
             return Optional.empty();
@@ -236,7 +250,9 @@ public class SimpleConsumer implements IConsumer {
         }, this.readCacheExecutor).join();
     }
 
-    private Optional<Long> findPosition(final long timestamp) {
+
+    @Override
+    public Optional<Long> findPosition(final long timestamp) {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, timestamp);

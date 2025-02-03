@@ -657,4 +657,50 @@ public class SimpleConusmerTest {
 
 
     // endregion
+
+    // region findPosition
+
+    @Test
+    public void findPosition_EmptyQueue_ReturnsEmptyOptional() {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Optional<Long> result = simpleConsumer.findPosition(System.currentTimeMillis());
+            assertFalse(result.isPresent());
+        }
+    }
+
+    @Test
+    public void findPosition_InvalidTimestamp_ReturnsEmptyOptional() {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleProducer.offer("testKey", "content1");
+            simpleProducer.offer("testKey", "content2");
+            simpleProducer.offer("testKey", "content3");
+
+            Optional<Long> result = simpleConsumer.findPosition(System.currentTimeMillis());
+        }
+    }
+
+    @Test
+    public void findPosition_ValidTimestamp_Returns() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+
+            simpleProducer.offer("testKey1", "content1");
+            Thread.sleep(100);
+            simpleProducer.offer("testKey2", "content2");
+            long expectedTime = System.currentTimeMillis();
+            Thread.sleep(100);
+            simpleProducer.offer("testKey3", "content3");
+            Thread.sleep(100);
+
+            Optional<Long> position = simpleConsumer.findPosition(expectedTime);
+            assertTrue(position.isPresent());
+            Optional<QueueMessage> queueMessage = simpleConsumer.get(position.get());
+            assertTrue(queueMessage.isPresent());
+            assertEquals("testKey2", queueMessage.get().getMessageKey());
+        }
+    }
+
+
+    // endregion
 }
