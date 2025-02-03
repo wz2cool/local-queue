@@ -321,7 +321,7 @@ public class SimpleConsumer implements IConsumer {
                             logDebug("[readToCache] consumer is closing");
                             return;
                         }
-                        InternalReadMessage internalReadMessage = new InternalReadMessage();
+                        InternalReadMessage internalReadMessage = new InternalReadMessage(this.matchTags);
                         boolean readResult = mainTailer.readBytes(internalReadMessage);
                         if (!readResult) {
                             TimeUnit.MILLISECONDS.sleep(pullInterval);
