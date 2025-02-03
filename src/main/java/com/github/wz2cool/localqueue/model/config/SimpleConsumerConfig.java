@@ -29,6 +29,8 @@ public class SimpleConsumerConfig {
 
     private final TimeZone timeZone;
 
+    private final String selectTag;
+
     private SimpleConsumerConfig(final Builder builder) {
         this.dataDir = builder.dataDir;
         this.positionFile = builder.positionFile;
@@ -40,6 +42,7 @@ public class SimpleConsumerConfig {
         this.consumeFromWhere = builder.consumeFromWhere;
         this.rollCycleType = builder.rollCycleType;
         this.timeZone = builder.timeZone;
+        this.selectTag = builder.selectTag;
     }
 
     public File getDataDir() {
@@ -82,6 +85,10 @@ public class SimpleConsumerConfig {
         return timeZone;
     }
 
+    public String getSelectTag() {
+        return selectTag;
+    }
+
     public static class Builder {
 
         private File dataDir;
@@ -89,6 +96,8 @@ public class SimpleConsumerConfig {
         private File positionFile;
 
         private String consumerId;
+
+        private String selectTag = "*";
 
         private long pullInterval = 10;
 
@@ -154,6 +163,11 @@ public class SimpleConsumerConfig {
             return this;
         }
 
+        public Builder setSelectTag(String selectTag) {
+            this.selectTag = selectTag;
+            return this;
+        }
+
         public SimpleConsumerConfig build() {
             if (Objects.isNull(dataDir)) {
                 throw new IllegalArgumentException("dataDir cannot be null");
@@ -195,6 +209,10 @@ public class SimpleConsumerConfig {
 
             if (Objects.isNull(timeZone)) {
                 throw new IllegalArgumentException("timeZone cannot be null");
+            }
+
+            if (Objects.isNull(selectTag)) {
+                this.selectTag = "*";
             }
 
             return new SimpleConsumerConfig(this);

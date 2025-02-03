@@ -35,6 +35,7 @@ public class SimpleConsumer implements IConsumer {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final RollCycle defaultRollCycle;
     private final TimeProvider timeProvider;
+    private final Set<String> matchTags;
     private final SimpleConsumerConfig config;
     private final PositionStore positionStore;
     private final SingleChronicleQueue queue;
@@ -58,6 +59,7 @@ public class SimpleConsumer implements IConsumer {
      */
     public SimpleConsumer(final SimpleConsumerConfig config) {
         this.config = config;
+        this.matchTags = getMatchTags(config.getSelectTag());
         this.timeProvider = ChronicleQueueHelper.getTimeProvider(config.getTimeZone());
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
@@ -222,8 +224,21 @@ public class SimpleConsumer implements IConsumer {
         }
     }
 
+    private Set<String> getMatchTags(String selectTag) {
+        logDebug("[getMatchTags] start, selectTag: {}", selectTag);
+        ConcurrentHashMap.KeySetView<String, Boolean> mySet = ConcurrentHashMap.newKeySet();
+        if (selectTag == null || selectTag.isEmpty()) {
+            return mySet;
+        }
+
+        String[] tags = selectTag.split("\\|\\|");
+        mySet.addAll(Arrays.asList(tags));
+        return mySet;
+    }
+
     private QueueMessage toQueueMessage(final InternalReadMessage internalReadMessage, final long position) {
         return new QueueMessage(
+                internalReadMessage.getTag(),
                 internalReadMessage.getMessageKey(),
                 positionVersion.get(),
                 position,
@@ -312,12 +327,15 @@ public class SimpleConsumer implements IConsumer {
                             TimeUnit.MILLISECONDS.sleep(pullInterval);
                             continue;
                         }
-                        long lastedReadIndex = mainTailer.lastReadIndex();
-                        QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
-                        boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
-                        if (!offerResult) {
-                            // if offer failed, move to last read position
-                            mainTailer.moveToIndex(lastedReadIndex);
+                        String messageTag = internalReadMessage.getTag() == null ? "*" : internalReadMessage.getTag();
+                        if (matchTags.contains("*") || matchTags.contains(messageTag)) {
+                            long lastedReadIndex = mainTailer.lastReadIndex();
+                            QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
+                            boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
+                            if (!offerResult) {
+                                // if offer failed, move to last read position
+                                mainTailer.moveToIndex(lastedReadIndex);
+                            }
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();

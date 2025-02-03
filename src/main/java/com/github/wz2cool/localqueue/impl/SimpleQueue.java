@@ -67,8 +67,12 @@ public class SimpleQueue implements IQueue {
         return getConsumer(consumerId, ConsumeFromWhere.LAST);
     }
 
-    @Override
     public synchronized IConsumer getConsumer(final String consumerId, final ConsumeFromWhere consumeFromWhere) {
+        return getConsumer(consumerId, null, consumeFromWhere);
+    }
+
+    @Override
+    public synchronized IConsumer getConsumer(final String consumerId, final String selectTag, final ConsumeFromWhere consumeFromWhere) {
         SimpleConsumer consumer = consumerMap.get(consumerId);
         if (Objects.nonNull(consumer)) {
             return consumer;
@@ -80,6 +84,7 @@ public class SimpleQueue implements IQueue {
                 .setConsumeFromWhere(consumeFromWhere)
                 .setRollCycleType(config.getRollCycleType())
                 .setTimeZone(config.getTimeZone())
+                .setSelectTag(selectTag)
                 .build());
         consumer.addCloseListener(() -> {
             SimpleConsumer removeItem = consumerMap.remove(consumerId);

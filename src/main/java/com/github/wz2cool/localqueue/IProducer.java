@@ -27,6 +27,16 @@ public interface IProducer extends AutoCloseable {
     boolean offer(String messageKey, String message);
 
     /**
+     * offer message to queue
+     *
+     * @param tag        tag
+     * @param messageKey message key
+     * @param message    message
+     * @return true if success
+     */
+    boolean offer(String tag, String messageKey, String message);
+
+    /**
      * is closed
      *
      * @return true if closed

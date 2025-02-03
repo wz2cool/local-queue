@@ -137,6 +137,15 @@ public class SimpleProducer implements IProducer {
         return this.messageCache.offer(internalWriteMessage);
     }
 
+    @Override
+    public boolean offer(String tag, String messageKey, String message) {
+        InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
+        internalWriteMessage.setContent(message);
+        internalWriteMessage.setMessageKey(messageKey);
+        internalWriteMessage.setTag(tag);
+        return this.messageCache.offer(internalWriteMessage);
+    }
+
     /**
      * get the last position
      *

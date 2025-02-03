@@ -45,6 +45,16 @@ public interface IQueue extends AutoCloseable {
     IConsumer getConsumer(String consumerId, ConsumeFromWhere consumeFromWhere);
 
     /**
+     * get consumer
+     *
+     * @param consumerId       consumer id
+     * @param selectTag        select tag
+     * @param consumeFromWhere consume from where
+     * @return consumer
+     */
+    IConsumer getConsumer(String consumerId, String selectTag, ConsumeFromWhere consumeFromWhere);
+
+    /**
      * close queue
      */
     void close();

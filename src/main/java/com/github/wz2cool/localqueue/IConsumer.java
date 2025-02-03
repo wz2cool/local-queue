@@ -162,5 +162,12 @@ public interface IConsumer extends AutoCloseable {
      */
     PageInfo<QueueMessage> getPage(long moveToPosition, SortDirection sortDirection, int pageSize);
 
+    /**
+     * get page by page info.
+     *
+     * @param prevPageInfo previous page info
+     * @param upDown       up or down
+     * @return page info
+     */
     PageInfo<QueueMessage> getPage(PageInfo<QueueMessage> prevPageInfo, UpDown upDown);
 }

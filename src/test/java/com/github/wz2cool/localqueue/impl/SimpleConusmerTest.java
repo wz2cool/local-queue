@@ -385,9 +385,9 @@ public class SimpleConusmerTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis()));
-            messages.add(new QueueMessage(UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis()));
-            messages.add(new QueueMessage(UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis()));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis()));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis()));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis()));
             simpleConsumer.ack(messages);
             assertEquals(3L, simpleConsumer.getAckedReadPosition());
         }
@@ -826,6 +826,60 @@ public class SimpleConusmerTest {
         }
     }
 
+
+    // endregion
+
+    // region testSelectTag
+
+    @Test
+    public void testSelectTag() throws InterruptedException {
+        SimpleConsumerConfig consumer1Config = new SimpleConsumerConfig.Builder()
+                .setDataDir(dir)
+                .setConsumeFromWhere(ConsumeFromWhere.FIRST)
+                .setPositionFile(new File("./test/position.txt"))
+                .setConsumerId("test")
+                .setPullInterval(1)
+                .setCacheSize(100)
+                .setFlushPositionInterval(10)
+                .setSelectTag("odd")
+                .build();
+
+        SimpleConsumerConfig consumer2Config = new SimpleConsumerConfig.Builder()
+                .setDataDir(dir)
+                .setConsumeFromWhere(ConsumeFromWhere.FIRST)
+                .setPositionFile(new File("./test/position.txt"))
+                .setConsumerId("test")
+                .setPullInterval(1)
+                .setCacheSize(100)
+                .setFlushPositionInterval(10)
+                .setSelectTag("even")
+                .build();
+
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer1 = new SimpleConsumer(consumer1Config);
+             SimpleConsumer simpleConsumer2 = new SimpleConsumer(consumer2Config)) {
+            for (int i = 1; i <= 100; i++) {
+                String tag = i % 2 == 0 ? "even" : "odd";
+                simpleProducer.offer(tag, "key" + i, "content" + i);
+            }
+            Thread.sleep(1000);
+            List<QueueMessage> queueMessages = simpleConsumer1.batchPoll(10);
+            assertEquals(10, queueMessages.size());
+            assertEquals("key1", queueMessages.get(0).getMessageKey());
+            for (QueueMessage queueMessage : queueMessages) {
+                assertTrue(queueMessage.getTag().equals("odd"));
+            }
+            simpleConsumer1.ack(queueMessages);
+
+            queueMessages = simpleConsumer2.batchPoll(10);
+            assertEquals(10, queueMessages.size());
+            assertEquals("key2", queueMessages.get(0).getMessageKey());
+            for (QueueMessage queueMessage : queueMessages) {
+                assertTrue(queueMessage.getTag().equals("even"));
+            }
+            simpleConsumer2.ack(queueMessages);
+        }
+    }
 
     // endregion
 }

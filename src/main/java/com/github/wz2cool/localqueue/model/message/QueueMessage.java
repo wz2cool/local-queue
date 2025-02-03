@@ -12,17 +12,20 @@ public class QueueMessage {
     private final String content;
     private final long writeTime;
     private final String messageKey;
+    private final String tag;
 
     /**
      * constructor
      *
+     * @param tag             tag
      * @param messageKey      message key
      * @param positionVersion position version
      * @param position        position of queue
      * @param content         content
      * @param writeTime       write time
      */
-    public QueueMessage(String messageKey, int positionVersion, long position, String content, long writeTime) {
+    public QueueMessage(String tag, String messageKey, int positionVersion, long position, String content, long writeTime) {
+        this.tag = tag;
         this.messageKey = messageKey;
         this.positionVersion = positionVersion;
         this.position = position;
@@ -48,5 +51,9 @@ public class QueueMessage {
 
     public String getMessageKey() {
         return messageKey;
+    }
+
+    public String getTag() {
+        return tag;
     }
 }

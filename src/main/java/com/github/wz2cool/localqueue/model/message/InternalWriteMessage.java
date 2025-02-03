@@ -10,6 +10,7 @@ public class InternalWriteMessage extends BaseInternalMessage implements WriteBy
     @Override
     public void writeMarshallable(BytesOut<?> bytes) throws IllegalStateException, BufferOverflowException, InvalidMarshallableException {
         bytes.writeLong(this.writeTime);
+        bytes.writeUtf8(this.tag);
         bytes.writeUtf8(this.messageKey);
         bytes.writeUtf8(this.content);
     }
