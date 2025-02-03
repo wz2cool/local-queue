@@ -1,13 +1,21 @@
 package com.github.wz2cool.localqueue;
 
 import java.io.Serializable;
+import java.util.Optional;
 
 /**
  * store interface
  *
- * @param <T> valueType
+ * @param <TValue> valueType
  */
-public interface IStore<T extends Serializable> extends AutoCloseable {
+public interface IStore<TKey extends Serializable, TValue extends Serializable> extends AutoCloseable {
+
+    /**
+     * is store closed
+     *
+     * @return is store closed
+     */
+    boolean isClosed();
 
     /**
      * put key value
@@ -15,7 +23,7 @@ public interface IStore<T extends Serializable> extends AutoCloseable {
      * @param key   key
      * @param value value
      */
-    void put(String key, T value);
+    void put(TKey key, TValue value);
 
     /**
      * get value by key
@@ -23,7 +31,7 @@ public interface IStore<T extends Serializable> extends AutoCloseable {
      * @param key key
      * @return value
      */
-    T get(String key);
+    Optional<TValue> get(String key);
 
     /**
      * close store

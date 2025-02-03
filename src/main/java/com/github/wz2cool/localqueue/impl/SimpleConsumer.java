@@ -7,22 +7,23 @@ import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import com.github.wz2cool.localqueue.model.page.PageInfo;
+import com.github.wz2cool.localqueue.model.page.SortDirection;
+import com.github.wz2cool.localqueue.model.page.UpDown;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycle;
+import net.openhft.chronicle.queue.TailerDirection;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * simple consumer
@@ -43,12 +44,12 @@ public class SimpleConsumer implements IConsumer {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final LinkedBlockingQueue<QueueMessage> messageCache;
     private final ConcurrentLinkedQueue<CloseListener> closeListenerList = new ConcurrentLinkedQueue<>();
-    private volatile long ackedReadPosition = -1;
-    private volatile boolean isReadToCacheRunning = true;
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+    private final AtomicLong ackedReadPosition = new AtomicLong(-1);
+    private final AtomicBoolean isReadToCacheRunning = new AtomicBoolean(true);
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final Object closeLocker = new Object();
     private final AtomicInteger positionVersion = new AtomicInteger(0);
-    private final Lock internalLock = new ReentrantLock();
 
     /**
      * constructor
@@ -123,8 +124,7 @@ public class SimpleConsumer implements IConsumer {
         if (message.getPositionVersion() != positionVersion.get()) {
             return;
         }
-
-        this.ackedReadPosition = message.getPosition();
+        ackedReadPosition.set(message.getPosition());
     }
 
     @Override
@@ -136,7 +136,7 @@ public class SimpleConsumer implements IConsumer {
         if (lastOne.getPositionVersion() != positionVersion.get()) {
             return;
         }
-        this.ackedReadPosition = lastOne.getPosition();
+        ackedReadPosition.set(lastOne.getPosition());
     }
 
     @Override
@@ -144,10 +144,8 @@ public class SimpleConsumer implements IConsumer {
         logDebug("[moveToPosition] start");
         stopReadToCache();
         try {
-            internalLock.lock();
             return moveToPositionInternal(position);
         } finally {
-            internalLock.unlock();
             startReadToCache();
             logDebug("[moveToPosition] end");
         }
@@ -158,7 +156,6 @@ public class SimpleConsumer implements IConsumer {
         logDebug("[moveToTimestamp] start, timestamp: {}", timestamp);
         stopReadToCache();
         try {
-            internalLock.lock();
             Optional<Long> positionOptional = findPosition(timestamp);
             if (!positionOptional.isPresent()) {
                 return false;
@@ -166,15 +163,26 @@ public class SimpleConsumer implements IConsumer {
             Long position = positionOptional.get();
             return moveToPositionInternal(position);
         } finally {
-            internalLock.unlock();
             startReadToCache();
             logDebug("[moveToTimestamp] end");
         }
     }
 
     @Override
-    public Optional<QueueMessage> get(final String messageKey) {
-        return get(messageKey, 0L, Long.MAX_VALUE);
+    public Optional<QueueMessage> get(final long position) {
+        if (position < 0) {
+            return Optional.empty();
+        }
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            tailer.moveToIndex(position);
+            InternalReadMessage internalReadMessage = new InternalReadMessage();
+            boolean readResult = tailer.readBytes(internalReadMessage);
+            if (readResult) {
+                return Optional.of(toQueueMessage(internalReadMessage, position));
+            } else {
+                return Optional.empty();
+            }
+        }
     }
 
     @Override
@@ -225,22 +233,30 @@ public class SimpleConsumer implements IConsumer {
 
     private boolean moveToPositionInternal(final long position) {
         return CompletableFuture.supplyAsync(() -> {
-            try {
-                logDebug("[moveToPositionInternal] start, position: {}", position);
-                boolean moveToResult = mainTailer.moveToIndex(position);
-                if (moveToResult) {
-                    positionVersion.incrementAndGet();
-                    messageCache.clear();
-                    this.ackedReadPosition = position;
+            synchronized (closeLocker) {
+                try {
+                    if (isClosing.get()) {
+                        logDebug("[moveToPositionInternal] consumer is closing");
+                        return false;
+                    }
+                    logDebug("[moveToPositionInternal] start, position: {}", position);
+                    boolean moveToResult = mainTailer.moveToIndex(position);
+                    if (moveToResult) {
+                        positionVersion.incrementAndGet();
+                        messageCache.clear();
+                        ackedReadPosition.set(position);
+                    }
+                    return moveToResult;
+                } finally {
+                    logDebug("[moveToPositionInternal] end");
                 }
-                return moveToResult;
-            } finally {
-                logDebug("[moveToPositionInternal] end");
             }
         }, this.readCacheExecutor).join();
     }
 
-    private Optional<Long> findPosition(final long timestamp) {
+
+    @Override
+    public Optional<Long> findPosition(final long timestamp) {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, timestamp);
@@ -261,49 +277,54 @@ public class SimpleConsumer implements IConsumer {
     }
 
     public long getAckedReadPosition() {
-        return ackedReadPosition;
+        return ackedReadPosition.get();
     }
 
+    @Override
     public boolean isClosed() {
-        return isClosed;
+        return isClosed.get();
     }
 
     private void stopReadToCache() {
-        this.isReadToCacheRunning = false;
+        isReadToCacheRunning.set(false);
     }
 
     private void startReadToCache() {
-        this.isReadToCacheRunning = true;
+        this.isReadToCacheRunning.set(true);
         readCacheExecutor.execute(this::readToCache);
     }
 
     private void readToCache() {
         try {
             logDebug("[readToCache] start");
-            internalLock.lock();
             long pullInterval = config.getPullInterval();
             long fillCacheInterval = config.getFillCacheInterval();
-            while (this.isReadToCacheRunning && !isClosing) {
-                try {
-                    InternalReadMessage internalReadMessage = new InternalReadMessage();
-                    boolean readResult = mainTailer.readBytes(internalReadMessage);
-                    if (!readResult) {
-                        TimeUnit.MILLISECONDS.sleep(pullInterval);
-                        continue;
+            while (isReadToCacheRunning.get() && !isClosing.get()) {
+                synchronized (closeLocker) {
+                    try {
+                        if (isClosing.get()) {
+                            logDebug("[readToCache] consumer is closing");
+                            return;
+                        }
+                        InternalReadMessage internalReadMessage = new InternalReadMessage();
+                        boolean readResult = mainTailer.readBytes(internalReadMessage);
+                        if (!readResult) {
+                            TimeUnit.MILLISECONDS.sleep(pullInterval);
+                            continue;
+                        }
+                        long lastedReadIndex = mainTailer.lastReadIndex();
+                        QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
+                        boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
+                        if (!offerResult) {
+                            // if offer failed, move to last read position
+                            mainTailer.moveToIndex(lastedReadIndex);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                     }
-                    long lastedReadIndex = mainTailer.lastReadIndex();
-                    QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
-                    boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
-                    if (!offerResult) {
-                        // if offer failed, move to last read position
-                        mainTailer.moveToIndex(lastedReadIndex);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
         } finally {
-            internalLock.unlock();
             logDebug("[readToCache] end");
         }
     }
@@ -342,17 +363,13 @@ public class SimpleConsumer implements IConsumer {
     /// region position
 
     private void flushPosition() {
-        if (ackedReadPosition != -1) {
-            setLastPosition(this.ackedReadPosition);
+        if (ackedReadPosition.get() != -1) {
+            setLastPosition(this.ackedReadPosition.get());
         }
     }
 
     private Optional<Long> getLastPosition() {
-        Long position = positionStore.get(config.getConsumerId());
-        if (position == null) {
-            return Optional.empty();
-        }
-        return Optional.of(position);
+        return positionStore.get(config.getConsumerId());
     }
 
     private void setLastPosition(long position) {
@@ -361,45 +378,46 @@ public class SimpleConsumer implements IConsumer {
 
     /// endregion
 
+    @SuppressWarnings("Duplicates")
     @Override
     public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosed) {
-                logDebug("[close] already closed");
-                return;
-            }
-            isClosing = true;
-            this.internalLock.lock();
-            stopReadToCache();
-            this.internalLock.unlock();
-            if (!positionStore.isClosed()) {
-                positionStore.close();
-            }
-            scheduler.shutdown();
-            readCacheExecutor.shutdown();
+        synchronized (closeLocker) {
             try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
+                }
+                isClosing.set(true);
+                stopReadToCache();
+                if (!positionStore.isClosed()) {
+                    positionStore.close();
+                }
+                scheduler.shutdown();
+                readCacheExecutor.shutdown();
+                try {
+                    if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                        scheduler.shutdownNow();
+                    }
+                    if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                        readCacheExecutor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
                     scheduler.shutdownNow();
-                }
-                if (!readCacheExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                     readCacheExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
                 }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                readCacheExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-            if (!queue.isClosed()) {
-                queue.close();
-            }
+                if (!queue.isClosed()) {
+                    queue.close();
+                }
 
-            for (CloseListener closeListener : closeListenerList) {
-                closeListener.onClose();
+                for (CloseListener closeListener : closeListenerList) {
+                    closeListener.onClose();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 
@@ -416,6 +434,108 @@ public class SimpleConsumer implements IConsumer {
     public void addCloseListener(CloseListener listener) {
         closeListenerList.add(listener);
     }
+
+
+    // region page
+
+    @Override
+    public PageInfo<QueueMessage> getPage(SortDirection sortDirection, int pageSize) {
+        return getPage(-1, sortDirection, pageSize);
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Override
+    public PageInfo<QueueMessage> getPage(long moveToPosition, SortDirection sortDirection, int pageSize) {
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            if (moveToPosition != -1) {
+                tailer.moveToIndex(moveToPosition);
+            }
+            if (sortDirection == SortDirection.DESC) {
+                tailer.toEnd();
+                tailer.direction(TailerDirection.BACKWARD);
+            }
+            List<QueueMessage> data = new ArrayList<>();
+            long start = -1;
+            long end = -1;
+            for (int i = 0; i < pageSize; i++) {
+                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    break;
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                data.add(queueMessage);
+                if (i == 0) {
+                    start = tailer.lastReadIndex();
+                }
+                end = tailer.lastReadIndex();
+            }
+            return new PageInfo<>(start, end, data, sortDirection, pageSize);
+        }
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Override
+    public PageInfo<QueueMessage> getPage(PageInfo<QueueMessage> prevPageInfo, UpDown upDown) {
+        SortDirection sortDirection = prevPageInfo.getSortDirection();
+        int pageSize = prevPageInfo.getPageSize();
+        long start = prevPageInfo.getStart();
+        long end = prevPageInfo.getEnd();
+        try (ExcerptTailer tailer = queue.createTailer()) {
+            TailerDirection tailerDirection = getTailerDirection(sortDirection, upDown);
+            tailer.direction(tailerDirection);
+            if (sortDirection == SortDirection.DESC) {
+                if (upDown == UpDown.DOWN) {
+                    tailer.moveToIndex(end - 1);
+                } else {
+                    tailer.moveToIndex(start + 1);
+                }
+            } else {
+                if (upDown == UpDown.DOWN) {
+                    tailer.moveToIndex(end + 1);
+                } else {
+                    tailer.moveToIndex(start - 1);
+                }
+            }
+            List<QueueMessage> data = new ArrayList<>();
+            for (int i = 0; i < pageSize; i++) {
+                InternalReadMessage internalReadMessage = new InternalReadMessage();
+                boolean readResult = tailer.readBytes(internalReadMessage);
+                if (!readResult) {
+                    break;
+                }
+                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                data.add(queueMessage);
+                if (i == 0) {
+                    start = tailer.lastReadIndex();
+                }
+                end = tailer.lastReadIndex();
+            }
+            if (upDown == UpDown.UP) {
+                Collections.reverse(data);
+            }
+            return new PageInfo<>(start, end, data, sortDirection, pageSize);
+        }
+    }
+
+    private TailerDirection getTailerDirection(SortDirection sortDirection, UpDown upDown) {
+        if (sortDirection == SortDirection.DESC && upDown == UpDown.DOWN) {
+            return TailerDirection.BACKWARD;
+        }
+        if (sortDirection == SortDirection.DESC && upDown == UpDown.UP) {
+            return TailerDirection.FORWARD;
+        }
+        if (sortDirection == SortDirection.ASC && upDown == UpDown.DOWN) {
+            return TailerDirection.FORWARD;
+        }
+        if (sortDirection == SortDirection.ASC && upDown == UpDown.UP) {
+            return TailerDirection.BACKWARD;
+        }
+        return TailerDirection.FORWARD;
+    }
+
+
+    // endregion
 
     // region logger
 

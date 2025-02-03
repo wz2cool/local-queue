@@ -20,10 +20,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * simple writer
@@ -43,12 +41,12 @@ public class SimpleProducer implements IProducer {
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private final Lock internalLock = new ReentrantLock();
     private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
 
-    private volatile boolean isFlushRunning = true;
-    private volatile boolean isClosing = false;
-    private volatile boolean isClosed = false;
+    private final AtomicBoolean isFlushRunning = new AtomicBoolean(true);
+    private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final Object closeLocker = new Object();
 
     public SimpleProducer(final SimpleProducerConfig config) {
         this.config = config;
@@ -68,14 +66,15 @@ public class SimpleProducer implements IProducer {
     }
 
     // region flush to file
-    private void flush() {
-        while (isFlushRunning && !isClosing) {
-            flushMessages(config.getFlushBatchSize());
-        }
-    }
 
     private void stopFlush() {
-        isFlushRunning = false;
+        isFlushRunning.set(false);
+    }
+
+    private void flush() {
+        while (isFlushRunning.get() && !isClosing.get()) {
+            flushMessages(config.getFlushBatchSize());
+        }
     }
 
     private final List<InternalWriteMessage> tempFlushMessages = new ArrayList<>();
@@ -93,7 +92,7 @@ public class SimpleProducer implements IProducer {
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
             }
-            flushMessages(tempFlushMessages);
+            doFlushMessages(tempFlushMessages);
             tempFlushMessages.clear();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -102,22 +101,23 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    private void flushMessages(final List<InternalWriteMessage> messages) {
-        try {
-            logDebug("[flushMessages] start");
-            internalLock.lock();
-            if (!isFlushRunning || isClosing) {
-                return;
-            }
+    private void doFlushMessages(final List<InternalWriteMessage> messages) {
+        synchronized (closeLocker) {
+            try {
+                logDebug("[flushMessages] start");
+                if (isClosing.get()) {
+                    logDebug("[flushMessages] producer is closing");
+                    return;
+                }
 
-            for (InternalWriteMessage message : messages) {
-                long writeTime = System.currentTimeMillis();
-                message.setWriteTime(writeTime);
-                mainAppender.writeBytes(message);
+                for (InternalWriteMessage message : messages) {
+                    long writeTime = System.currentTimeMillis();
+                    message.setWriteTime(writeTime);
+                    mainAppender.writeBytes(message);
+                }
+            } finally {
+                logDebug("[flushMessages] end");
             }
-        } finally {
-            internalLock.unlock();
-            logDebug("[flushMessages] end");
         }
     }
 
@@ -133,8 +133,7 @@ public class SimpleProducer implements IProducer {
     public boolean offer(String messageKey, String message) {
         InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
         internalWriteMessage.setContent(message);
-        String useMessageKey = messageKey == null ? UUID.randomUUID().toString() : messageKey;
-        internalWriteMessage.setMessageKey(useMessageKey);
+        internalWriteMessage.setMessageKey(messageKey);
         return this.messageCache.offer(internalWriteMessage);
     }
 
@@ -154,45 +153,46 @@ public class SimpleProducer implements IProducer {
      *
      * @return true if the Producer is closed, false otherwise.
      */
+    @Override
     public boolean isClosed() {
-        return isClosed;
+        return isClosed.get();
     }
 
     @Override
     public void close() {
-        try {
-            logDebug("[close] start");
-            if (isClosed) {
-                logDebug("[close] already closed");
-                return;
-            }
-            isClosing = true;
-            internalLock.lock();
-            stopFlush();
-            internalLock.unlock();
-            if (!queue.isClosed()) {
-                queue.close();
-            }
-            flushExecutor.shutdown();
-            scheduler.shutdown();
+        synchronized (closeLocker) {
             try {
-                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                logDebug("[close] start");
+                if (isClosing.get()) {
+                    logDebug("[close] is closing");
+                    return;
+                }
+                isClosing.set(true);
+                stopFlush();
+                if (!queue.isClosed()) {
+                    queue.close();
+                }
+                flushExecutor.shutdown();
+                scheduler.shutdown();
+                try {
+                    if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                        scheduler.shutdownNow();
+                    }
+                    if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                        flushExecutor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
                     scheduler.shutdownNow();
-                }
-                if (!flushExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
                     flushExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
                 }
-            } catch (InterruptedException e) {
-                scheduler.shutdownNow();
-                flushExecutor.shutdownNow();
-                Thread.currentThread().interrupt();
+                for (CloseListener closeListener : closeListeners) {
+                    closeListener.onClose();
+                }
+                isClosed.set(true);
+            } finally {
+                logDebug("[close] end");
             }
-            for (CloseListener closeListener : closeListeners) {
-                closeListener.onClose();
-            }
-            isClosed = true;
-        } finally {
-            logDebug("[close] end");
         }
     }
 
@@ -226,6 +226,7 @@ public class SimpleProducer implements IProducer {
         }
     }
 
+
     private void cleanUpOldFile(final File file, final LocalDate keepDate) throws IOException {
         String fileName = file.getName();
         String dateString = fileName.substring(0, 8);
@@ -239,16 +240,16 @@ public class SimpleProducer implements IProducer {
     // endregion
 
     // region logger
-
-    private void logDebug(String format) {
+    private void logDebug(String format, String arg) {
         if (logger.isDebugEnabled()) {
-            logDebug(format);
+            logger.debug(format, arg);
         }
     }
 
-    private void logDebug(String format, Object arg) {
+
+    private void logDebug(String format) {
         if (logger.isDebugEnabled()) {
-            logDebug(format, arg);
+            logger.debug(format);
         }
     }
 

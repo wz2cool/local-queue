@@ -4,6 +4,9 @@ import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import com.github.wz2cool.localqueue.model.page.PageInfo;
+import com.github.wz2cool.localqueue.model.page.SortDirection;
+import com.github.wz2cool.localqueue.model.page.UpDown;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -583,25 +586,6 @@ public class SimpleConusmerTest {
     // region get
 
     @Test
-    public void get_NullMessageKey_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            List<Long> timeList = new ArrayList<>();
-            for (int i = 0; i < 300; i++) {
-                String key = "key" + i;
-                String msg = "msg" + i;
-                producer.offer(key, msg);
-                long msg1Time = System.currentTimeMillis();
-                Thread.sleep(10);
-                timeList.add(msg1Time);
-            }
-
-            Optional<QueueMessage> result = consumer.get(null);
-            assertFalse(result.isPresent());
-        }
-    }
-
-    @Test
     public void get_EmptyMessageKey_ReturnsEmptyOptional() throws InterruptedException {
         try (SimpleProducer producer = new SimpleProducer(producerConfig);
              SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
@@ -620,37 +604,6 @@ public class SimpleConusmerTest {
         }
     }
 
-    @Test
-    public void get_NoMessagesInQueue_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            Optional<QueueMessage> result = consumer.get("nonKey");
-            assertFalse(result.isPresent());
-        }
-    }
-
-    @Test
-    public void get_MatchingMessageKey_ReturnsQueueMessage() throws Exception {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            List<Long> timeList = new ArrayList<>();
-            for (int i = 0; i < 10000; i++) {
-                String key = "key" + i;
-                String msg = "msg" + i;
-                producer.offer(key, msg);
-                long msg1Time = System.currentTimeMillis();
-                timeList.add(msg1Time);
-            }
-            Thread.sleep(100);
-            long start = System.currentTimeMillis();
-            Optional<QueueMessage> result = consumer.get("key9998");
-            assertTrue(result.isPresent());
-            assertEquals("key9998", result.get().getMessageKey());
-            assertEquals("msg9998", result.get().getContent());
-            long end = System.currentTimeMillis();
-            System.out.println("[get_MatchingMessageKey_ReturnsQueueMessage] get cost:" + (end - start));
-        }
-    }
 
     // endregion
 
@@ -702,6 +655,174 @@ public class SimpleConusmerTest {
                     System.currentTimeMillis());
             assertTrue(result.isPresent());
             assertEquals("content2", result.get().getContent());
+        }
+    }
+
+
+    // endregion
+
+    // region findPosition
+
+    @Test
+    public void findPosition_EmptyQueue_ReturnsEmptyOptional() {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            Optional<Long> result = simpleConsumer.findPosition(System.currentTimeMillis());
+            assertFalse(result.isPresent());
+        }
+    }
+
+    @Test
+    public void findPosition_InvalidTimestamp_ReturnsEmptyOptional() {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            simpleProducer.offer("testKey", "content1");
+            simpleProducer.offer("testKey", "content2");
+            simpleProducer.offer("testKey", "content3");
+
+            Optional<Long> result = simpleConsumer.findPosition(System.currentTimeMillis());
+        }
+    }
+
+    @Test
+    public void findPosition_ValidTimestamp_Returns() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+
+            simpleProducer.offer("testKey1", "content1");
+            Thread.sleep(100);
+            simpleProducer.offer("testKey2", "content2");
+            long expectedTime = System.currentTimeMillis();
+            Thread.sleep(100);
+            simpleProducer.offer("testKey3", "content3");
+            Thread.sleep(100);
+
+            Optional<Long> position = simpleConsumer.findPosition(expectedTime);
+            assertTrue(position.isPresent());
+            Optional<QueueMessage> queueMessage = simpleConsumer.get(position.get());
+            assertTrue(queueMessage.isPresent());
+            assertEquals("testKey2", queueMessage.get().getMessageKey());
+        }
+    }
+
+
+    // endregion page
+    @Test
+    public void getPage_NoMessages_EmptyPage() {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.ASC, 10);
+            assertEquals(0, page.getData().size());
+            assertEquals(-1, page.getStart());
+            assertEquals(-1, page.getEnd());
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_FullPage() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 0; i < 10; i++) {
+                simpleProducer.offer("test" + i);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.ASC, 10);
+            assertEquals(10, page.getData().size());
+            assertEquals(page.getStart(), page.getData().get(0).getPosition());
+            assertEquals(page.getEnd(), page.getData().get(page.getData().size() - 1).getPosition());
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_PartialPage() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 0; i < 100; i++) {
+                simpleProducer.offer("test" + i);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.ASC, 10);
+            assertEquals(10, page.getData().size());
+            assertEquals(page.getStart(), page.getData().get(0).getPosition());
+            assertEquals(page.getEnd(), page.getData().get(page.getData().size() - 1).getPosition());
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_PartialPage_withMoveToPosition() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 0; i < 100; i++) {
+                simpleProducer.offer("test" + i);
+                Thread.sleep(1);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.ASC, 10);
+            QueueMessage message = page.getData().get(page.getData().size() - 1);
+            long position = message.getPosition();
+            // move to position
+            PageInfo<QueueMessage> page1 = simpleConsumer.getPage(position, SortDirection.ASC, 10);
+            assertEquals(10, page1.getData().size());
+            assertEquals(message.getPosition(), page1.getData().get(0).getPosition());
+            assertEquals(message.getMessageKey(), page1.getData().get(0).getMessageKey());
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_PartialPage_withMoveToPosition_DESC() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 1; i <= 100; i++) {
+
+                simpleProducer.offer("key" + i, "test" + i);
+                Thread.sleep(1);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.DESC, 10);
+            QueueMessage lastMessage = page.getData().get(0);
+            assertEquals("key100", lastMessage.getMessageKey());
+
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_PartialPage_withMoveToPosition_DESC_withUpDown_withPrevPageInfo() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 0; i < 100; i++) {
+                simpleProducer.offer("key" + i, "content" + i);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.DESC, 10);
+            assertEquals(10, page.getData().size());
+            assertEquals("key99", page.getData().get(0).getMessageKey());
+            PageInfo<QueueMessage> page1 = simpleConsumer.getPage(page, UpDown.DOWN);
+            assertEquals(10, page1.getData().size());
+            assertEquals("key89", page1.getData().get(0).getMessageKey());
+
+            PageInfo<QueueMessage> page2 = simpleConsumer.getPage(page1, UpDown.UP);
+            assertEquals(10, page2.getData().size());
+            assertEquals("key99", page2.getData().get(0).getMessageKey());
+        }
+    }
+
+    @Test
+    public void getPage_WithMessages_PartialPage_withMoveToPosition_ASC_withUpDown_withPrevPageInfo() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 1; i <= 100; i++) {
+                simpleProducer.offer("key" + i, "content" + i);
+            }
+            Thread.sleep(100);
+            PageInfo<QueueMessage> page = simpleConsumer.getPage(SortDirection.ASC, 10);
+            assertEquals(10, page.getData().size());
+            assertEquals("key1", page.getData().get(0).getMessageKey());
+            PageInfo<QueueMessage> page1 = simpleConsumer.getPage(page, UpDown.DOWN);
+            assertEquals(10, page1.getData().size());
+            assertEquals("key11", page1.getData().get(0).getMessageKey());
+
+            PageInfo<QueueMessage> page2 = simpleConsumer.getPage(page1, UpDown.UP);
+            assertEquals(10, page2.getData().size());
+            assertEquals("key1", page2.getData().get(0).getMessageKey());
         }
     }
 

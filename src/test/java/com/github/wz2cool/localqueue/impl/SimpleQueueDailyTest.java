@@ -132,4 +132,15 @@ public class SimpleQueueDailyTest {
         }
         assertTrue(true, "no error return.");
     }
+
+    @Test
+    public void testClose() throws InterruptedException {
+        SimpleQueue queue = new SimpleQueue(config);
+        queue.addCloseListener(() -> {
+            System.out.println("queue close");
+        });
+        queue.close();
+        Thread.sleep(100);
+        assertTrue(queue.isClosed());
+    }
 }

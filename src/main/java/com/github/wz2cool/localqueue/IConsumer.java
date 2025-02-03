@@ -2,6 +2,9 @@ package com.github.wz2cool.localqueue;
 
 import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
+import com.github.wz2cool.localqueue.model.page.PageInfo;
+import com.github.wz2cool.localqueue.model.page.SortDirection;
+import com.github.wz2cool.localqueue.model.page.UpDown;
 
 import java.util.List;
 import java.util.Optional;
@@ -98,13 +101,12 @@ public interface IConsumer extends AutoCloseable {
     boolean moveToTimestamp(long timestamp);
 
     /**
-     * get message by messageKey.
-     * NOTE: if you want to get message by messageKey quickly, you should set searchTimestampStart and searchTimestampEnd.
+     * get message by position.
      *
-     * @param messageKey messageKey
+     * @param position position
      * @return message
      */
-    Optional<QueueMessage> get(String messageKey);
+    Optional<QueueMessage> get(long position);
 
     /**
      * get message by messageKey.
@@ -117,6 +119,21 @@ public interface IConsumer extends AutoCloseable {
     Optional<QueueMessage> get(String messageKey, long searchTimestampStart, long searchTimestampEnd);
 
     /**
+     * find position by timestamp.
+     *
+     * @param timestamp timestamp
+     * @return position
+     */
+    Optional<Long> findPosition(long timestamp);
+
+    /**
+     * is closed
+     *
+     * @return true if closed
+     */
+    boolean isClosed();
+
+    /**
      * close consumer.
      */
     void close();
@@ -127,4 +144,23 @@ public interface IConsumer extends AutoCloseable {
      * @param listener close listener
      */
     void addCloseListener(CloseListener listener);
+
+    /**
+     * get latest page.
+     *
+     * @param pageSize page size
+     * @return page info
+     */
+    PageInfo<QueueMessage> getPage(SortDirection sortDirection, int pageSize);
+
+    /**
+     * get page by position.
+     *
+     * @param moveToPosition start position
+     * @param pageSize       page size
+     * @return page info
+     */
+    PageInfo<QueueMessage> getPage(long moveToPosition, SortDirection sortDirection, int pageSize);
+
+    PageInfo<QueueMessage> getPage(PageInfo<QueueMessage> prevPageInfo, UpDown upDown);
 }

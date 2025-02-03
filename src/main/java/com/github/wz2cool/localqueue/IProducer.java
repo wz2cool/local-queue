@@ -27,6 +27,13 @@ public interface IProducer extends AutoCloseable {
     boolean offer(String messageKey, String message);
 
     /**
+     * is closed
+     *
+     * @return true if closed
+     */
+    boolean isClosed();
+
+    /**
      * close producer.
      */
     void close();
