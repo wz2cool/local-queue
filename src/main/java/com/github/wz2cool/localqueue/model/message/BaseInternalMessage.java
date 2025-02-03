@@ -3,8 +3,17 @@ package com.github.wz2cool.localqueue.model.message;
 public class BaseInternalMessage {
 
     protected long writeTime;
+    protected String tag;
     protected String messageKey;
     protected String content;
+
+    public String getTag() {
+        return tag;
+    }
+
+    public void setTag(String tag) {
+        this.tag = tag;
+    }
 
     public String getContent() {
         return content;
