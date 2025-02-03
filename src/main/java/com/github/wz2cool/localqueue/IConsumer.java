@@ -97,14 +97,6 @@ public interface IConsumer extends AutoCloseable {
      */
     boolean moveToTimestamp(long timestamp);
 
-    /**
-     * get message by messageKey.
-     * NOTE: if you want to get message by messageKey quickly, you should set searchTimestampStart and searchTimestampEnd.
-     *
-     * @param messageKey messageKey
-     * @return message
-     */
-    Optional<QueueMessage> get(String messageKey);
 
     /**
      * get message by messageKey.

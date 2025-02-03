@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * simple writer
@@ -44,7 +42,6 @@ public class SimpleProducer implements IProducer {
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private final Lock internalLock = new ReentrantLock();
     private final ConcurrentLinkedQueue<CloseListener> closeListeners = new ConcurrentLinkedQueue<>();
 
     private final AtomicBoolean isFlushRunning = new AtomicBoolean(true);
@@ -70,14 +67,15 @@ public class SimpleProducer implements IProducer {
     }
 
     // region flush to file
+
+    private void stopFlush() {
+        isFlushRunning.set(false);
+    }
+
     private void flush() {
         while (isFlushRunning.get() && !isClosing.get()) {
             flushMessages(config.getFlushBatchSize());
         }
-    }
-
-    private void stopFlush() {
-        isFlushRunning.set(false);
     }
 
     private final List<InternalWriteMessage> tempFlushMessages = new ArrayList<>();
@@ -95,7 +93,7 @@ public class SimpleProducer implements IProducer {
                 // 如果空了从消息缓存放入待刷消息
                 this.messageCache.drainTo(tempFlushMessages, batchSize - 1);
             }
-            flushMessages(tempFlushMessages);
+            doFlushMessages(tempFlushMessages);
             tempFlushMessages.clear();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -104,22 +102,23 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    private void flushMessages(final List<InternalWriteMessage> messages) {
-        try {
-            logDebug("[flushMessages] start");
-            internalLock.lock();
-            if (!isFlushRunning.get() || isClosing.get()) {
-                return;
-            }
+    private void doFlushMessages(final List<InternalWriteMessage> messages) {
+        synchronized (closeLocker) {
+            try {
+                logDebug("[flushMessages] start");
+                if (isClosing.get()) {
+                    logDebug("[flushMessages] producer is closing");
+                    return;
+                }
 
-            for (InternalWriteMessage message : messages) {
-                long writeTime = System.currentTimeMillis();
-                message.setWriteTime(writeTime);
-                mainAppender.writeBytes(message);
+                for (InternalWriteMessage message : messages) {
+                    long writeTime = System.currentTimeMillis();
+                    message.setWriteTime(writeTime);
+                    mainAppender.writeBytes(message);
+                }
+            } finally {
+                logDebug("[flushMessages] end");
             }
-        } finally {
-            internalLock.unlock();
-            logDebug("[flushMessages] end");
         }
     }
 
@@ -171,9 +170,7 @@ public class SimpleProducer implements IProducer {
                     return;
                 }
                 isClosing.set(true);
-                internalLock.lock();
                 stopFlush();
-                internalLock.unlock();
                 if (!queue.isClosed()) {
                     queue.close();
                 }

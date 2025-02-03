@@ -583,25 +583,6 @@ public class SimpleConusmerTest {
     // region get
 
     @Test
-    public void get_NullMessageKey_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            List<Long> timeList = new ArrayList<>();
-            for (int i = 0; i < 300; i++) {
-                String key = "key" + i;
-                String msg = "msg" + i;
-                producer.offer(key, msg);
-                long msg1Time = System.currentTimeMillis();
-                Thread.sleep(10);
-                timeList.add(msg1Time);
-            }
-
-            Optional<QueueMessage> result = consumer.get(null);
-            assertFalse(result.isPresent());
-        }
-    }
-
-    @Test
     public void get_EmptyMessageKey_ReturnsEmptyOptional() throws InterruptedException {
         try (SimpleProducer producer = new SimpleProducer(producerConfig);
              SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
@@ -620,37 +601,6 @@ public class SimpleConusmerTest {
         }
     }
 
-    @Test
-    public void get_NoMessagesInQueue_ReturnsEmptyOptional() throws InterruptedException {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            Optional<QueueMessage> result = consumer.get("nonKey");
-            assertFalse(result.isPresent());
-        }
-    }
-
-    @Test
-    public void get_MatchingMessageKey_ReturnsQueueMessage() throws Exception {
-        try (SimpleProducer producer = new SimpleProducer(producerConfig);
-             SimpleConsumer consumer = new SimpleConsumer(consumerConfig)) {
-            List<Long> timeList = new ArrayList<>();
-            for (int i = 0; i < 10000; i++) {
-                String key = "key" + i;
-                String msg = "msg" + i;
-                producer.offer(key, msg);
-                long msg1Time = System.currentTimeMillis();
-                timeList.add(msg1Time);
-            }
-            Thread.sleep(100);
-            long start = System.currentTimeMillis();
-            Optional<QueueMessage> result = consumer.get("key9998");
-            assertTrue(result.isPresent());
-            assertEquals("key9998", result.get().getMessageKey());
-            assertEquals("msg9998", result.get().getContent());
-            long end = System.currentTimeMillis();
-            System.out.println("[get_MatchingMessageKey_ReturnsQueueMessage] get cost:" + (end - start));
-        }
-    }
 
     // endregion
 
