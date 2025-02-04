@@ -882,4 +882,28 @@ public class SimpleConusmerTest {
     }
 
     // endregion
+
+    // region no ack test
+
+    @Test
+    public void noAckTest() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            for (int i = 1; i <= 100; i++) {
+                simpleProducer.offer("key" + i, "content" + i);
+            }
+            Thread.sleep(100);
+            List<QueueMessage> queueMessages = simpleConsumer.batchTake(10);
+            assertEquals(10, queueMessages.size());
+            assertEquals("key1", queueMessages.get(0).getMessageKey());
+            // no ack
+            Thread.sleep(100);
+            queueMessages = simpleConsumer.batchTake(10);
+            assertEquals(10, queueMessages.size());
+            // still get key1 because previous take no ack
+            assertEquals("key1", queueMessages.get(0).getMessageKey());
+        }
+    }
+
+    // endregion
 }

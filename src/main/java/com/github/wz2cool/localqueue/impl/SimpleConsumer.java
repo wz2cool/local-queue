@@ -73,47 +73,79 @@ public class SimpleConsumer implements IConsumer {
         scheduler.scheduleAtFixedRate(this::flushPosition, 0, config.getFlushPositionInterval(), TimeUnit.MILLISECONDS);
     }
 
+
+    private final List<QueueMessage> pendingMessages = Collections.synchronizedList(new ArrayList<>());
+
     @Override
     public synchronized QueueMessage take() throws InterruptedException {
-        return this.messageCache.take();
+        if (!pendingMessages.isEmpty()) {
+            return pendingMessages.get(0);
+        }
+        QueueMessage message = this.messageCache.take();
+        pendingMessages.add(message);
+        return message;
     }
 
     @Override
     public synchronized List<QueueMessage> batchTake(int maxBatchSize) throws InterruptedException {
+        if (!pendingMessages.isEmpty()) {
+            return pendingMessages.subList(0, maxBatchSize);
+        }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         QueueMessage take = this.messageCache.take();
         result.add(take);
         this.messageCache.drainTo(result, maxBatchSize - 1);
+        pendingMessages.addAll(result);
         return result;
     }
 
     @Override
     public synchronized Optional<QueueMessage> take(long timeout, TimeUnit unit) throws InterruptedException {
+        if (!pendingMessages.isEmpty()) {
+            return Optional.of(pendingMessages.get(0));
+        }
         QueueMessage message = this.messageCache.poll(timeout, unit);
+        if (Objects.nonNull(message)) {
+            pendingMessages.add(message);
+        }
         return Optional.ofNullable(message);
     }
 
     @Override
     public synchronized List<QueueMessage> batchTake(int maxBatchSize, long timeout, TimeUnit unit) throws InterruptedException {
+        if (!pendingMessages.isEmpty()) {
+            return pendingMessages.subList(0, maxBatchSize);
+        }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         QueueMessage poll = this.messageCache.poll(timeout, unit);
         if (Objects.nonNull(poll)) {
             result.add(poll);
             this.messageCache.drainTo(result, maxBatchSize - 1);
+            pendingMessages.addAll(result);
         }
         return result;
     }
 
     @Override
     public synchronized Optional<QueueMessage> poll() {
+        if (!pendingMessages.isEmpty()) {
+            return Optional.of(pendingMessages.get(0));
+        }
         QueueMessage message = this.messageCache.poll();
+        if (Objects.nonNull(message)) {
+            pendingMessages.add(message);
+        }
         return Optional.ofNullable(message);
     }
 
     @Override
     public synchronized List<QueueMessage> batchPoll(int maxBatchSize) {
+        if (!pendingMessages.isEmpty()) {
+            return pendingMessages.subList(0, maxBatchSize);
+        }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         this.messageCache.drainTo(result, maxBatchSize);
+        pendingMessages.addAll(result);
         return result;
     }
 
@@ -127,6 +159,7 @@ public class SimpleConsumer implements IConsumer {
             return;
         }
         ackedReadPosition.set(message.getPosition());
+        pendingMessages.remove(message);
     }
 
     @Override
@@ -139,6 +172,7 @@ public class SimpleConsumer implements IConsumer {
             return;
         }
         ackedReadPosition.set(lastOne.getPosition());
+        pendingMessages.removeAll(messages);
     }
 
     @Override
