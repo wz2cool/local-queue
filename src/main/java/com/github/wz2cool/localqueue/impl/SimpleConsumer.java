@@ -192,11 +192,12 @@ public class SimpleConsumer implements IConsumer {
         if (messageKey == null || messageKey.isEmpty()) {
             return Optional.empty();
         }
+        // reuse this message
+        InternalReadMessage internalReadMessage = new InternalReadMessage();
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, searchTimestampStart);
             while (true) {
                 // for performance, ignore read content.
-                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
                 boolean readResult = tailer.readBytes(internalReadMessage);
                 if (!readResult) {
                     return Optional.empty();
@@ -211,7 +212,6 @@ public class SimpleConsumer implements IConsumer {
                 if (!moveToResult) {
                     return Optional.empty();
                 }
-                internalReadMessage = new InternalReadMessage();
                 readResult = tailer.readBytes(internalReadMessage);
                 if (!readResult) {
                     return Optional.empty();
@@ -275,8 +275,9 @@ public class SimpleConsumer implements IConsumer {
         logDebug("[findPosition] start, timestamp: {}", timestamp);
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, timestamp);
+            // reuse this message.
+            InternalReadMessage internalReadMessage = new InternalReadMessage(true);
             while (true) {
-                InternalReadMessage internalReadMessage = new InternalReadMessage(true);
                 boolean resultResult = tailer.readBytes(internalReadMessage);
                 if (resultResult) {
                     if (internalReadMessage.getWriteTime() >= timestamp) {
@@ -314,6 +315,8 @@ public class SimpleConsumer implements IConsumer {
             logDebug("[readToCache] start");
             long pullInterval = config.getPullInterval();
             long fillCacheInterval = config.getFillCacheInterval();
+            // reuse this message.
+            InternalReadMessage internalReadMessage = new InternalReadMessage(this.matchTags);
             while (isReadToCacheRunning.get() && !isClosing.get()) {
                 synchronized (closeLocker) {
                     try {
@@ -321,7 +324,7 @@ public class SimpleConsumer implements IConsumer {
                             logDebug("[readToCache] consumer is closing");
                             return;
                         }
-                        InternalReadMessage internalReadMessage = new InternalReadMessage(this.matchTags);
+
                         boolean readResult = mainTailer.readBytes(internalReadMessage);
                         if (!readResult) {
                             TimeUnit.MILLISECONDS.sleep(pullInterval);
@@ -475,8 +478,9 @@ public class SimpleConsumer implements IConsumer {
             List<QueueMessage> data = new ArrayList<>();
             long start = -1;
             long end = -1;
+            // reuse this message.
+            InternalReadMessage internalReadMessage = new InternalReadMessage();
             for (int i = 0; i < pageSize; i++) {
-                InternalReadMessage internalReadMessage = new InternalReadMessage();
                 boolean readResult = tailer.readBytes(internalReadMessage);
                 if (!readResult) {
                     break;
@@ -516,8 +520,9 @@ public class SimpleConsumer implements IConsumer {
                 }
             }
             List<QueueMessage> data = new ArrayList<>();
+            // reuse this message.
+            InternalReadMessage internalReadMessage = new InternalReadMessage();
             for (int i = 0; i < pageSize; i++) {
-                InternalReadMessage internalReadMessage = new InternalReadMessage();
                 boolean readResult = tailer.readBytes(internalReadMessage);
                 if (!readResult) {
                     break;
