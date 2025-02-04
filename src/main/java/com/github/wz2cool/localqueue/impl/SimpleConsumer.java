@@ -89,7 +89,7 @@ public class SimpleConsumer implements IConsumer {
     @Override
     public synchronized List<QueueMessage> batchTake(int maxBatchSize) throws InterruptedException {
         if (!pendingMessages.isEmpty()) {
-            return pendingMessages.subList(0, maxBatchSize);
+            return pendingMessages.subList(0, Math.min(maxBatchSize, pendingMessages.size()));
         }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         QueueMessage take = this.messageCache.take();
@@ -114,7 +114,7 @@ public class SimpleConsumer implements IConsumer {
     @Override
     public synchronized List<QueueMessage> batchTake(int maxBatchSize, long timeout, TimeUnit unit) throws InterruptedException {
         if (!pendingMessages.isEmpty()) {
-            return pendingMessages.subList(0, maxBatchSize);
+            return pendingMessages.subList(0, Math.min(maxBatchSize, pendingMessages.size()));
         }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         QueueMessage poll = this.messageCache.poll(timeout, unit);
@@ -141,7 +141,7 @@ public class SimpleConsumer implements IConsumer {
     @Override
     public synchronized List<QueueMessage> batchPoll(int maxBatchSize) {
         if (!pendingMessages.isEmpty()) {
-            return pendingMessages.subList(0, maxBatchSize);
+            return pendingMessages.subList(0, Math.min(maxBatchSize, pendingMessages.size()));
         }
         List<QueueMessage> result = new ArrayList<>(maxBatchSize);
         this.messageCache.drainTo(result, maxBatchSize);

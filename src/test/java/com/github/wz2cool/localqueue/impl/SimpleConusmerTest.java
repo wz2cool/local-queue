@@ -898,7 +898,7 @@ public class SimpleConusmerTest {
             assertEquals("key1", queueMessages.get(0).getMessageKey());
             // no ack
             Thread.sleep(100);
-            queueMessages = simpleConsumer.batchTake(10);
+            queueMessages = simpleConsumer.batchTake(100);
             assertEquals(10, queueMessages.size());
             // still get key1 because previous take no ack
             assertEquals("key1", queueMessages.get(0).getMessageKey());
