@@ -30,10 +30,10 @@ public class InternalReadMessage extends BaseInternalMessage implements ReadByte
 
     @Override
     public void readMarshallable(BytesIn<?> bytes) throws IORuntimeException, BufferUnderflowException, IllegalStateException, InvalidMarshallableException {
-        this.writeTime = bytes.readLong();
         this.tag = bytes.readUtf8();
         String messageTag = tag == null ? "*" : tag;
         if (tags == null || tags.contains("*") || tags.contains(messageTag)) {
+            this.writeTime = bytes.readLong();
             this.messageKey = bytes.readUtf8();
             if (!ignoreReadContent) {
                 this.content = bytes.readUtf8();

@@ -9,8 +9,8 @@ import java.nio.BufferOverflowException;
 public class InternalWriteMessage extends BaseInternalMessage implements WriteBytesMarshallable {
     @Override
     public void writeMarshallable(BytesOut<?> bytes) throws IllegalStateException, BufferOverflowException, InvalidMarshallableException {
-        bytes.writeLong(this.writeTime);
         bytes.writeUtf8(this.tag);
+        bytes.writeLong(this.writeTime);
         bytes.writeUtf8(this.messageKey);
         bytes.writeUtf8(this.content);
     }
