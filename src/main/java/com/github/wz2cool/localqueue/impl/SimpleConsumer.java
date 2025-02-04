@@ -317,7 +317,7 @@ public class SimpleConsumer implements IConsumer {
             long fillCacheInterval = config.getFillCacheInterval();
             // reuse this message.
             InternalReadMessage internalReadMessage = new InternalReadMessage(this.matchTags);
-            while (isReadToCacheRunning.get() && !isClosing.get()) {
+            while (isReadToCacheRunning.get()) {
                 synchronized (closeLocker) {
                     try {
                         if (isClosing.get()) {
