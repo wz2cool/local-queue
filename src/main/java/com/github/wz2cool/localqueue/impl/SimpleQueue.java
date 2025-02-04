@@ -84,7 +84,7 @@ public class SimpleQueue implements IQueue {
                 .setConsumeFromWhere(consumeFromWhere)
                 .setRollCycleType(config.getRollCycleType())
                 .setTimeZone(config.getTimeZone())
-                .setSelectTag(selectTag)
+                .setSelectorTag(selectTag)
                 .build());
         consumer.addCloseListener(() -> {
             SimpleConsumer removeItem = consumerMap.remove(consumerId);
