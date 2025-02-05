@@ -841,7 +841,7 @@ public class SimpleConusmerTest {
                 .setPullInterval(1)
                 .setCacheSize(100)
                 .setFlushPositionInterval(10)
-                .setSelectTag("odd")
+                .setSelectorTag("odd")
                 .build();
 
         SimpleConsumerConfig consumer2Config = new SimpleConsumerConfig.Builder()
@@ -852,7 +852,7 @@ public class SimpleConusmerTest {
                 .setPullInterval(1)
                 .setCacheSize(100)
                 .setFlushPositionInterval(10)
-                .setSelectTag("even")
+                .setSelectorTag("even")
                 .build();
 
         try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);

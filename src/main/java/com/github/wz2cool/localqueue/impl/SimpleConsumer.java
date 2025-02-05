@@ -73,7 +73,7 @@ public class SimpleConsumer implements IConsumer {
      */
     public SimpleConsumer(final SimpleConsumerConfig config) {
         this.config = config;
-        this.matchTags = getMatchTags(config.getSelectTag());
+        this.matchTags = getMatchTags(config.getSelectorTag());
         this.timeProvider = ChronicleQueueHelper.getTimeProvider(config.getTimeZone());
         this.messageCache = new LinkedBlockingQueue<>(config.getCacheSize());
         this.positionStore = new PositionStore(config.getPositionFile());
@@ -274,14 +274,14 @@ public class SimpleConsumer implements IConsumer {
         }
     }
 
-    private Set<String> getMatchTags(String selectTag) {
-        logDebug("[getMatchTags] start, selectTag: {}", selectTag);
+    private Set<String> getMatchTags(String selectorTag) {
+        logDebug("[getMatchTags] start, selectorTag: {}", selectorTag);
         ConcurrentHashMap.KeySetView<String, Boolean> mySet = ConcurrentHashMap.newKeySet();
-        if (selectTag == null || selectTag.isEmpty()) {
+        if (selectorTag == null || selectorTag.isEmpty()) {
             return mySet;
         }
 
-        String[] tags = selectTag.split("\\|\\|");
+        String[] tags = selectorTag.split("\\|\\|");
         mySet.addAll(Arrays.asList(tags));
         return mySet;
     }
