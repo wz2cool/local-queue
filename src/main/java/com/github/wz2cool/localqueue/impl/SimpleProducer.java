@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author frank
  */
+@SuppressWarnings("Duplicates")
 public class SimpleProducer implements IProducer {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
@@ -96,6 +97,8 @@ public class SimpleProducer implements IProducer {
             tempFlushMessages.clear();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+        } catch (Exception ex) {
+            logger.error("[flushInternal] flush error", ex);
         } finally {
             logDebug("[flushInternal] end");
         }

@@ -10,6 +10,7 @@ import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import com.github.wz2cool.localqueue.model.page.PageInfo;
 import com.github.wz2cool.localqueue.model.page.SortDirection;
 import com.github.wz2cool.localqueue.model.page.UpDown;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -209,7 +211,9 @@ public class SimpleConsumer implements IConsumer {
                 return false;
             }
             Long position = positionOptional.get();
-            return moveToPositionInternal(position);
+            boolean moveToResult = moveToPositionInternal(position);
+            logger.info("[moveToTimestamp] timestamp: {}, moveToResult: {}", timestamp, moveToResult);
+            return moveToResult;
         } finally {
             startReadToCache();
             logDebug("[moveToTimestamp] end");
@@ -307,6 +311,7 @@ public class SimpleConsumer implements IConsumer {
                         messageCache.clear();
                         ackedReadPosition.set(position);
                     }
+                    logger.info("[local-queue] move to position: {}, result: {}", position, moveToResult);
                     return moveToResult;
                 } finally {
                     logDebug("[moveToPositionInternal] end");
@@ -388,6 +393,8 @@ public class SimpleConsumer implements IConsumer {
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                    } catch (Exception e) {
+                        logger.error("[local-queue] read to cache error", e);
                     }
                 }
             }
