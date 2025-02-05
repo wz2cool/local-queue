@@ -10,6 +10,24 @@ import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import com.github.wz2cool.localqueue.model.page.PageInfo;
 import com.github.wz2cool.localqueue.model.page.SortDirection;
 import com.github.wz2cool.localqueue.model.page.UpDown;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -18,12 +36,6 @@ import net.openhft.chronicle.queue.TailerDirection;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * simple consumer
@@ -418,8 +430,12 @@ public class SimpleConsumer implements IConsumer {
     /// region position
 
     private void flushPosition() {
-        if (ackedReadPosition.get() != -1) {
-            setLastPosition(this.ackedReadPosition.get());
+        try {
+            if (ackedReadPosition.get() != -1) {
+                setLastPosition(this.ackedReadPosition.get());
+            }
+        } catch (Exception e) {
+            logger.error("flushPosition Exception", e);
         }
     }
 
@@ -489,7 +505,6 @@ public class SimpleConsumer implements IConsumer {
     public void addCloseListener(CloseListener listener) {
         closeListenerList.add(listener);
     }
-
 
     // region page
 
@@ -590,7 +605,6 @@ public class SimpleConsumer implements IConsumer {
         }
         return TailerDirection.FORWARD;
     }
-
 
     // endregion
 
