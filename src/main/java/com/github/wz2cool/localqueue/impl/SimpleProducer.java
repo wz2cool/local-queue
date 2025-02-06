@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -158,7 +159,11 @@ public class SimpleProducer implements IProducer {
         internalMessage.setContent(message);
         internalMessage.setMessageKey(messageKey);
         internalMessage.setTag(tag);
-        headerConsumer.accept(internalMessage.getHeaderMessage());
+        if (Objects.nonNull(headerConsumer)) {
+            HeaderMessage headerMessage = new HeaderMessage();
+            headerConsumer.accept(headerMessage);
+            internalMessage.setHeaderMessage(headerMessage);
+        }
         return this.messageCache.offer(internalMessage);
     }
 

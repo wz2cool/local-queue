@@ -20,7 +20,7 @@ public class InternalMessage implements BytesMarshallable {
     private String messageKey;
     private String content;
 
-    private HeaderMessage headerMessage = new HeaderMessage();
+    private HeaderMessage headerMessage;
 
     public InternalMessage() {
         this.matchTags = null;
@@ -71,6 +71,10 @@ public class InternalMessage implements BytesMarshallable {
 
     public HeaderMessage getHeaderMessage() {
         return headerMessage;
+    }
+
+    public void setHeaderMessage(HeaderMessage headerMessage) {
+        this.headerMessage = headerMessage;
     }
 
     @Override
