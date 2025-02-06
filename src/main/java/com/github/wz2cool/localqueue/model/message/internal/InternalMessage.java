@@ -1,4 +1,4 @@
-package com.github.wz2cool.localqueue.model.message;
+package com.github.wz2cool.localqueue.model.message.internal;
 
 import net.openhft.chronicle.bytes.BytesIn;
 import net.openhft.chronicle.bytes.BytesMarshallable;
@@ -15,10 +15,12 @@ public class InternalMessage implements BytesMarshallable {
     private final Set<String> matchTags;
     private final boolean ignoreReadContent;
 
-    private long writeTime;
     private String tag;
+    private long writeTime;
     private String messageKey;
     private String content;
+
+    private HeaderMessage headerMessage = new HeaderMessage();
 
     public InternalMessage() {
         this.matchTags = null;
@@ -34,7 +36,6 @@ public class InternalMessage implements BytesMarshallable {
         this.matchTags = matchTags;
         this.ignoreReadContent = false;
     }
-
 
     public String getTag() {
         return tag;
@@ -68,6 +69,10 @@ public class InternalMessage implements BytesMarshallable {
         this.messageKey = messageKey;
     }
 
+    public HeaderMessage getHeaderMessage() {
+        return headerMessage;
+    }
+
     @Override
     public void readMarshallable(BytesIn<?> bytes) throws IORuntimeException, BufferUnderflowException, IllegalStateException, InvalidMarshallableException {
         this.tag = bytes.readUtf8();
@@ -77,6 +82,7 @@ public class InternalMessage implements BytesMarshallable {
             this.messageKey = bytes.readUtf8();
             if (!ignoreReadContent) {
                 this.content = bytes.readUtf8();
+                this.headerMessage = bytes.readObject(HeaderMessage.class);
             }
         }
     }
@@ -87,5 +93,6 @@ public class InternalMessage implements BytesMarshallable {
         bytes.writeLong(this.writeTime);
         bytes.writeUtf8(this.messageKey);
         bytes.writeUtf8(this.content);
+        bytes.writeObject(HeaderMessage.class, headerMessage);
     }
 }

@@ -1,6 +1,9 @@
 package com.github.wz2cool.localqueue;
 
 import com.github.wz2cool.localqueue.event.CloseListener;
+import com.github.wz2cool.localqueue.model.message.internal.HeaderMessage;
+
+import java.util.function.Consumer;
 
 /**
  * producer interface.
@@ -35,6 +38,8 @@ public interface IProducer extends AutoCloseable {
      * @return true if success
      */
     boolean offer(String tag, String messageKey, String message);
+
+    boolean offer(String tag, String messageKey, String message, Consumer<HeaderMessage> headerConsumer);
 
     /**
      * is closed

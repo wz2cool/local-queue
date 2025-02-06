@@ -385,9 +385,9 @@ public class SimpleConusmerTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis()));
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis()));
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis()));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis(), null));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis(), null));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis(), null));
             simpleConsumer.ack(messages);
             assertEquals(3L, simpleConsumer.getAckedReadPosition());
         }
@@ -879,6 +879,23 @@ public class SimpleConusmerTest {
             }
             simpleConsumer2.ack(queueMessages);
         }
+    }
+
+    @Test
+    public void testAddHeader() throws InterruptedException {
+        try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
+             SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
+            boolean offerResult = simpleProducer.offer("key1", "", "content1", (headers) -> {
+                headers.putHeader("key1", "value1");
+            });
+            assertTrue(offerResult);
+            Thread.sleep(100);
+            QueueMessage queueMessage = simpleConsumer.take();
+            Optional<String> key1Value = queueMessage.getHeader("key1");
+            assertTrue(key1Value.isPresent());
+            assertEquals("value1", key1Value.get());
+        }
+
     }
 
     // endregion

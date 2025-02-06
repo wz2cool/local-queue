@@ -4,7 +4,8 @@ import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
-import com.github.wz2cool.localqueue.model.message.InternalMessage;
+import com.github.wz2cool.localqueue.model.message.internal.HeaderMessage;
+import com.github.wz2cool.localqueue.model.message.internal.InternalMessage;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * simple writer
@@ -134,19 +136,30 @@ public class SimpleProducer implements IProducer {
 
     @Override
     public boolean offer(String messageKey, String message) {
-        InternalMessage InternalMessage = new InternalMessage();
-        InternalMessage.setContent(message);
-        InternalMessage.setMessageKey(messageKey);
-        return this.messageCache.offer(InternalMessage);
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(messageKey);
+        return this.messageCache.offer(internalMessage);
     }
 
     @Override
     public boolean offer(String tag, String messageKey, String message) {
-        InternalMessage InternalMessage = new InternalMessage();
-        InternalMessage.setContent(message);
-        InternalMessage.setMessageKey(messageKey);
-        InternalMessage.setTag(tag);
-        return this.messageCache.offer(InternalMessage);
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(messageKey);
+        internalMessage.setTag(tag);
+        return this.messageCache.offer(internalMessage);
+    }
+
+
+    @Override
+    public boolean offer(String tag, String messageKey, String message, Consumer<HeaderMessage> headerConsumer) {
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(messageKey);
+        internalMessage.setTag(tag);
+        headerConsumer.accept(internalMessage.getHeaderMessage());
+        return this.messageCache.offer(internalMessage);
     }
 
     /**
