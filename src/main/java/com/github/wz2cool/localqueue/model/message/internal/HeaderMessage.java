@@ -17,15 +17,15 @@ public class HeaderMessage implements BytesMarshallable {
 
     private final Map<String, String> headers = new HashMap<>();
 
-    public synchronized Optional<String> getHeaderValue(String headerKey) {
+    public Optional<String> getHeaderValue(String headerKey) {
         return Optional.ofNullable(headers.get(headerKey));
     }
 
-    public synchronized Set<String> getHeaderKeys() {
+    public Set<String> getHeaderKeys() {
         return headers.keySet();
     }
 
-    public synchronized Map<String, String> getHeaders() {
+    public Map<String, String> getHeaders() {
         return headers;
     }
 
