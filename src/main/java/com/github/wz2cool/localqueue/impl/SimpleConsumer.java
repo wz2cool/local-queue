@@ -5,7 +5,7 @@ import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
-import com.github.wz2cool.localqueue.model.message.InternalReadMessage;
+import com.github.wz2cool.localqueue.model.message.InternalMessage;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import com.github.wz2cool.localqueue.model.page.PageInfo;
 import com.github.wz2cool.localqueue.model.page.SortDirection;
@@ -227,10 +227,10 @@ public class SimpleConsumer implements IConsumer {
         }
         try (ExcerptTailer tailer = queue.createTailer()) {
             tailer.moveToIndex(position);
-            InternalReadMessage internalReadMessage = new InternalReadMessage();
-            boolean readResult = tailer.readBytes(internalReadMessage);
+            InternalMessage InternalMessage = new InternalMessage();
+            boolean readResult = tailer.readBytes(InternalMessage);
             if (readResult) {
-                return Optional.of(toQueueMessage(internalReadMessage, position));
+                return Optional.of(toQueueMessage(InternalMessage, position));
             } else {
                 return Optional.empty();
             }
@@ -243,30 +243,30 @@ public class SimpleConsumer implements IConsumer {
             return Optional.empty();
         }
         // reuse this message
-        InternalReadMessage internalReadMessage = new InternalReadMessage();
+        InternalMessage InternalMessage = new InternalMessage();
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, searchTimestampStart);
             while (true) {
                 // for performance, ignore read content.
-                boolean readResult = tailer.readBytes(internalReadMessage);
+                boolean readResult = tailer.readBytes(InternalMessage);
                 if (!readResult) {
                     return Optional.empty();
                 }
-                if (internalReadMessage.getWriteTime() < searchTimestampStart) {
+                if (InternalMessage.getWriteTime() < searchTimestampStart) {
                     continue;
                 }
-                if (internalReadMessage.getWriteTime() > searchTimestampEnd) {
+                if (InternalMessage.getWriteTime() > searchTimestampEnd) {
                     return Optional.empty();
                 }
                 boolean moveToResult = tailer.moveToIndex(tailer.lastReadIndex());
                 if (!moveToResult) {
                     return Optional.empty();
                 }
-                readResult = tailer.readBytes(internalReadMessage);
+                readResult = tailer.readBytes(InternalMessage);
                 if (!readResult) {
                     return Optional.empty();
                 }
-                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                QueueMessage queueMessage = toQueueMessage(InternalMessage, tailer.lastReadIndex());
                 if (Objects.equals(messageKey, queueMessage.getMessageKey())) {
                     return Optional.of(queueMessage);
                 }
@@ -286,14 +286,14 @@ public class SimpleConsumer implements IConsumer {
         return mySet;
     }
 
-    private QueueMessage toQueueMessage(final InternalReadMessage internalReadMessage, final long position) {
+    private QueueMessage toQueueMessage(final InternalMessage InternalMessage, final long position) {
         return new QueueMessage(
-                internalReadMessage.getTag(),
-                internalReadMessage.getMessageKey(),
+                InternalMessage.getTag(),
+                InternalMessage.getMessageKey(),
                 positionVersion.get(),
                 position,
-                internalReadMessage.getContent(),
-                internalReadMessage.getWriteTime());
+                InternalMessage.getContent(),
+                InternalMessage.getWriteTime());
     }
 
     private boolean moveToPositionInternal(final long position) {
@@ -327,11 +327,11 @@ public class SimpleConsumer implements IConsumer {
         try (ExcerptTailer tailer = queue.createTailer()) {
             moveToNearByTimestamp(tailer, timestamp);
             // reuse this message.
-            InternalReadMessage internalReadMessage = new InternalReadMessage(true);
+            InternalMessage InternalMessage = new InternalMessage(true);
             while (true) {
-                boolean resultResult = tailer.readBytes(internalReadMessage);
+                boolean resultResult = tailer.readBytes(InternalMessage);
                 if (resultResult) {
-                    if (internalReadMessage.getWriteTime() >= timestamp) {
+                    if (InternalMessage.getWriteTime() >= timestamp) {
                         return Optional.of(tailer.lastReadIndex());
                     }
                 } else {
@@ -367,7 +367,7 @@ public class SimpleConsumer implements IConsumer {
             long pullInterval = config.getPullInterval();
             long fillCacheInterval = config.getFillCacheInterval();
             // reuse this message.
-            InternalReadMessage internalReadMessage = new InternalReadMessage(this.matchTags);
+            InternalMessage InternalMessage = new InternalMessage(this.matchTags);
             while (isReadToCacheRunning.get()) {
                 synchronized (closeLocker) {
                     try {
@@ -376,15 +376,15 @@ public class SimpleConsumer implements IConsumer {
                             return;
                         }
 
-                        boolean readResult = mainTailer.readBytes(internalReadMessage);
+                        boolean readResult = mainTailer.readBytes(InternalMessage);
                         if (!readResult) {
                             TimeUnit.MILLISECONDS.sleep(pullInterval);
                             continue;
                         }
-                        String messageTag = internalReadMessage.getTag() == null ? "*" : internalReadMessage.getTag();
+                        String messageTag = InternalMessage.getTag() == null ? "*" : InternalMessage.getTag();
                         if (matchTags.contains("*") || matchTags.contains(messageTag)) {
                             long lastedReadIndex = mainTailer.lastReadIndex();
-                            QueueMessage queueMessage = toQueueMessage(internalReadMessage, lastedReadIndex);
+                            QueueMessage queueMessage = toQueueMessage(InternalMessage, lastedReadIndex);
                             boolean offerResult = this.messageCache.offer(queueMessage, fillCacheInterval, TimeUnit.MILLISECONDS);
                             if (!offerResult) {
                                 // if offer failed, move to last read position
@@ -535,13 +535,13 @@ public class SimpleConsumer implements IConsumer {
             long start = -1;
             long end = -1;
             // reuse this message.
-            InternalReadMessage internalReadMessage = new InternalReadMessage();
+            InternalMessage InternalMessage = new InternalMessage();
             for (int i = 0; i < pageSize; i++) {
-                boolean readResult = tailer.readBytes(internalReadMessage);
+                boolean readResult = tailer.readBytes(InternalMessage);
                 if (!readResult) {
                     break;
                 }
-                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                QueueMessage queueMessage = toQueueMessage(InternalMessage, tailer.lastReadIndex());
                 data.add(queueMessage);
                 if (i == 0) {
                     start = tailer.lastReadIndex();
@@ -577,13 +577,13 @@ public class SimpleConsumer implements IConsumer {
             }
             List<QueueMessage> data = new ArrayList<>();
             // reuse this message.
-            InternalReadMessage internalReadMessage = new InternalReadMessage();
+            InternalMessage InternalMessage = new InternalMessage();
             for (int i = 0; i < pageSize; i++) {
-                boolean readResult = tailer.readBytes(internalReadMessage);
+                boolean readResult = tailer.readBytes(InternalMessage);
                 if (!readResult) {
                     break;
                 }
-                QueueMessage queueMessage = toQueueMessage(internalReadMessage, tailer.lastReadIndex());
+                QueueMessage queueMessage = toQueueMessage(InternalMessage, tailer.lastReadIndex());
                 data.add(queueMessage);
                 if (i == 0) {
                     start = tailer.lastReadIndex();

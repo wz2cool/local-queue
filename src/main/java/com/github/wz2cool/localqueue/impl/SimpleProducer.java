@@ -4,7 +4,7 @@ import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
-import com.github.wz2cool.localqueue.model.message.InternalWriteMessage;
+import com.github.wz2cool.localqueue.model.message.InternalMessage;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
@@ -36,7 +36,7 @@ public class SimpleProducer implements IProducer {
     private final TimeProvider timeProvider;
     private final SimpleProducerConfig config;
     private final SingleChronicleQueue queue;
-    private final LinkedBlockingQueue<InternalWriteMessage> messageCache = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<InternalMessage> messageCache = new LinkedBlockingQueue<>();
     // should only call by flushExecutor
     private final ExcerptAppender mainAppender;
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
@@ -78,14 +78,14 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    private final List<InternalWriteMessage> tempFlushMessages = new ArrayList<>();
+    private final List<InternalMessage> tempFlushMessages = new ArrayList<>();
 
     private void flushMessages(int batchSize) {
         try {
             logDebug("[flushInternal] start");
             if (tempFlushMessages.isEmpty()) {
                 // take 主要作用就是卡主线程
-                InternalWriteMessage firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
+                InternalMessage firstItem = this.messageCache.poll(config.getFlushInterval(), TimeUnit.MILLISECONDS);
                 if (firstItem == null) {
                     return;
                 }
@@ -104,7 +104,7 @@ public class SimpleProducer implements IProducer {
         }
     }
 
-    private void doFlushMessages(final List<InternalWriteMessage> messages) {
+    private void doFlushMessages(final List<InternalMessage> messages) {
         synchronized (closeLocker) {
             try {
                 logDebug("[flushMessages] start");
@@ -113,7 +113,7 @@ public class SimpleProducer implements IProducer {
                     return;
                 }
 
-                for (InternalWriteMessage message : messages) {
+                for (InternalMessage message : messages) {
                     long writeTime = System.currentTimeMillis();
                     message.setWriteTime(writeTime);
                     mainAppender.writeBytes(message);
@@ -134,19 +134,19 @@ public class SimpleProducer implements IProducer {
 
     @Override
     public boolean offer(String messageKey, String message) {
-        InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
-        internalWriteMessage.setContent(message);
-        internalWriteMessage.setMessageKey(messageKey);
-        return this.messageCache.offer(internalWriteMessage);
+        InternalMessage InternalMessage = new InternalMessage();
+        InternalMessage.setContent(message);
+        InternalMessage.setMessageKey(messageKey);
+        return this.messageCache.offer(InternalMessage);
     }
 
     @Override
     public boolean offer(String tag, String messageKey, String message) {
-        InternalWriteMessage internalWriteMessage = new InternalWriteMessage();
-        internalWriteMessage.setContent(message);
-        internalWriteMessage.setMessageKey(messageKey);
-        internalWriteMessage.setTag(tag);
-        return this.messageCache.offer(internalWriteMessage);
+        InternalMessage InternalMessage = new InternalMessage();
+        InternalMessage.setContent(message);
+        InternalMessage.setMessageKey(messageKey);
+        InternalMessage.setTag(tag);
+        return this.messageCache.offer(InternalMessage);
     }
 
     /**
