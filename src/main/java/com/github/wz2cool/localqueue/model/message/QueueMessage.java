@@ -64,10 +64,10 @@ public class QueueMessage {
         return tag;
     }
 
-    public Optional<String> getHeader(String key) {
+    public Optional<String> getHeaderValue(String headerKey) {
         if (Objects.isNull(headerMessage)) {
             return Optional.empty();
         }
-        return headerMessage.getHeader(key);
+        return headerMessage.getHeaderValue(headerKey);
     }
 }

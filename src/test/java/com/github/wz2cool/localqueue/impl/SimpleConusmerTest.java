@@ -886,12 +886,12 @@ public class SimpleConusmerTest {
         try (SimpleProducer simpleProducer = new SimpleProducer(producerConfig);
              SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             boolean offerResult = simpleProducer.offer("key1", "", "content1", (headers) -> {
-                headers.putHeader("key1", "value1");
+                headers.put("key1", "value1");
             });
             assertTrue(offerResult);
             Thread.sleep(100);
             QueueMessage queueMessage = simpleConsumer.take();
-            Optional<String> key1Value = queueMessage.getHeader("key1");
+            Optional<String> key1Value = queueMessage.getHeaderValue("key1");
             assertTrue(key1Value.isPresent());
             assertEquals("value1", key1Value.get());
         }

@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -154,14 +155,14 @@ public class SimpleProducer implements IProducer {
 
 
     @Override
-    public boolean offer(String tag, String messageKey, String message, Consumer<HeaderMessage> headerConsumer) {
+    public boolean offer(String tag, String messageKey, String message, Consumer<Map<String, String>> headersConsumer) {
         InternalMessage internalMessage = new InternalMessage();
         internalMessage.setContent(message);
         internalMessage.setMessageKey(messageKey);
         internalMessage.setTag(tag);
-        if (Objects.nonNull(headerConsumer)) {
+        if (Objects.nonNull(headersConsumer)) {
             HeaderMessage headerMessage = new HeaderMessage();
-            headerConsumer.accept(headerMessage);
+            headersConsumer.accept(headerMessage.getHeaders());
             internalMessage.setHeaderMessage(headerMessage);
         }
         return this.messageCache.offer(internalMessage);
