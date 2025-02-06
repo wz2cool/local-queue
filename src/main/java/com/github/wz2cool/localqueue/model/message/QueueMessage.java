@@ -2,8 +2,10 @@ package com.github.wz2cool.localqueue.model.message;
 
 import com.github.wz2cool.localqueue.model.message.internal.HeaderMessage;
 
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * queue message
@@ -69,5 +71,12 @@ public class QueueMessage {
             return Optional.empty();
         }
         return headerMessage.getHeaderValue(headerKey);
+    }
+
+    public Set<String> getHeaderKeys() {
+        if (Objects.isNull(headerMessage)) {
+            return new HashSet<>();
+        }
+        return headerMessage.getHeaderKeys();
     }
 }

@@ -17,10 +17,6 @@ public class HeaderMessage implements BytesMarshallable {
 
     private final Map<String, String> headers = new HashMap<>();
 
-    public synchronized void putHeader(String headerKey, String headerValue) {
-        headers.put(headerKey, headerValue);
-    }
-
     public synchronized Optional<String> getHeaderValue(String headerKey) {
         return Optional.ofNullable(headers.get(headerKey));
     }
