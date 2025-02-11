@@ -172,15 +172,15 @@ public class SimpleProducer implements IProducer {
 
     @Override
     public void close() {
+        logDebug("[close] start");
+        if (isClosing.get()) {
+            logDebug("[close] is closing");
+            return;
+        }
+        isClosing.set(true);
+        stopFlush();
         synchronized (closeLocker) {
             try {
-                logDebug("[close] start");
-                if (isClosing.get()) {
-                    logDebug("[close] is closing");
-                    return;
-                }
-                isClosing.set(true);
-                stopFlush();
                 if (!queue.isClosed()) {
                     queue.close();
                 }
