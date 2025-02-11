@@ -459,15 +459,15 @@ public class SimpleConsumer implements IConsumer {
     @SuppressWarnings("Duplicates")
     @Override
     public void close() {
+        logDebug("[close] start");
+        if (isClosing.get()) {
+            logDebug("[close] is closing");
+            return;
+        }
+        isClosing.set(true);
+        stopReadToCache();
         synchronized (closeLocker) {
             try {
-                logDebug("[close] start");
-                if (isClosing.get()) {
-                    logDebug("[close] is closing");
-                    return;
-                }
-                isClosing.set(true);
-                stopReadToCache();
                 if (!positionStore.isClosed()) {
                     positionStore.close();
                 }
