@@ -890,7 +890,7 @@ public class SimpleConusmerTest {
                 headers.put("key2", "value2");
             });
             assertTrue(offerResult);
-            Thread.sleep(100);
+            Thread.sleep(500);
             QueueMessage queueMessage = simpleConsumer.take();
             Optional<String> key1Value = queueMessage.getHeaderValue("key1");
             assertTrue(key1Value.isPresent());

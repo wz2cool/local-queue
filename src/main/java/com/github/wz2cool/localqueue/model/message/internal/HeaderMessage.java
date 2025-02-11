@@ -8,25 +8,28 @@ import net.openhft.chronicle.core.io.InvalidMarshallableException;
 
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class HeaderMessage implements BytesMarshallable {
 
-    private final Map<String, String> headers = new HashMap<>();
+    private final Map<String, String> headers;
+
+    public HeaderMessage(Map<String, String> headers) {
+        this.headers = headers;
+    }
 
     public Optional<String> getHeaderValue(String headerKey) {
+        if (Objects.isNull(headers)) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(headers.get(headerKey));
     }
 
     public Set<String> getHeaderKeys() {
+        if (Objects.isNull(headers)) {
+            return new HashSet<>();
+        }
         return headers.keySet();
-    }
-
-    public Map<String, String> getHeaders() {
-        return headers;
     }
 
     @Override
@@ -43,6 +46,10 @@ public class HeaderMessage implements BytesMarshallable {
 
     @Override
     public void writeMarshallable(BytesOut<?> bytes) throws IllegalStateException, BufferOverflowException, BufferUnderflowException, ArithmeticException, InvalidMarshallableException {
+        if (Objects.isNull(headers)) {
+            bytes.writeInt(0);
+            return;
+        }
         bytes.writeInt(headers.size());
         for (Map.Entry<String, String> entry : headers.entrySet()) {
             bytes.writeUtf8(entry.getKey());

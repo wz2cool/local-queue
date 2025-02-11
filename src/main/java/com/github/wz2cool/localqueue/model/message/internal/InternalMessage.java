@@ -97,6 +97,8 @@ public class InternalMessage implements BytesMarshallable {
         bytes.writeLong(this.writeTime);
         bytes.writeUtf8(this.messageKey);
         bytes.writeUtf8(this.content);
-        bytes.writeObject(HeaderMessage.class, headerMessage);
+        // must write empty header message to make sure the header message is not null.
+        HeaderMessage useHeaderMessage = this.headerMessage == null ? new HeaderMessage(null) : this.headerMessage;
+        bytes.writeObject(HeaderMessage.class, useHeaderMessage);
     }
 }

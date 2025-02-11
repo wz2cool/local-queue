@@ -19,10 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -161,8 +158,9 @@ public class SimpleProducer implements IProducer {
         internalMessage.setMessageKey(messageKey);
         internalMessage.setTag(tag);
         if (Objects.nonNull(headersConsumer)) {
-            HeaderMessage headerMessage = new HeaderMessage();
-            headersConsumer.accept(headerMessage.getHeaders());
+            Map<String, String> headers = new HashMap<>();
+            headersConsumer.accept(headers);
+            HeaderMessage headerMessage = new HeaderMessage(headers);
             internalMessage.setHeaderMessage(headerMessage);
         }
         return this.messageCache.offer(internalMessage);
@@ -191,15 +189,15 @@ public class SimpleProducer implements IProducer {
 
     @Override
     public void close() {
+        logDebug("[close] start");
+        if (isClosing.get()) {
+            logDebug("[close] is closing");
+            return;
+        }
+        isClosing.set(true);
+        stopFlush();
         synchronized (closeLocker) {
             try {
-                logDebug("[close] start");
-                if (isClosing.get()) {
-                    logDebug("[close] is closing");
-                    return;
-                }
-                isClosing.set(true);
-                stopFlush();
                 if (!queue.isClosed()) {
                     queue.close();
                 }
