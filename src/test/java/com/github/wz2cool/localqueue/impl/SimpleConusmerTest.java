@@ -3,6 +3,7 @@ package com.github.wz2cool.localqueue.impl;
 import com.github.wz2cool.localqueue.model.config.SimpleConsumerConfig;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
 import com.github.wz2cool.localqueue.model.enums.ConsumeFromWhere;
+import com.github.wz2cool.localqueue.model.message.MessageOption;
 import com.github.wz2cool.localqueue.model.message.QueueMessage;
 import com.github.wz2cool.localqueue.model.page.PageInfo;
 import com.github.wz2cool.localqueue.model.page.SortDirection;
@@ -51,10 +52,24 @@ public class SimpleConusmerTest {
 
     @AfterEach
     public void cleanUp() throws IOException, InterruptedException {
+        Thread.sleep(100);
         FileUtils.deleteDirectory(dir);
     }
 
     // region take
+
+    @Test
+    public void take_with_header() throws InterruptedException {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            MessageOption option = new MessageOption();
+            option.addHeader("header1", "value1");
+            simpleProducer.offer("test", option);
+            QueueMessage message = simpleConsumer.take();
+            assertEquals("test", message.getContent());
+            assertEquals("value1", message.getHeaderValue("header1").get());
+        }
+    }
 
     @Test
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {
@@ -385,9 +400,9 @@ public class SimpleConusmerTest {
     public void ack_NonEmptyMessages_PositionUpdated() {
         try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig)) {
             List<QueueMessage> messages = new ArrayList<>();
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis()));
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis()));
-            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis()));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 1L, "message1", System.currentTimeMillis(), null));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 2L, "message2", System.currentTimeMillis(), null));
+            messages.add(new QueueMessage(null, UUID.randomUUID().toString(), 0, 3L, "message3", System.currentTimeMillis(), null));
             simpleConsumer.ack(messages);
             assertEquals(3L, simpleConsumer.getAckedReadPosition());
         }
