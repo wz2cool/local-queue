@@ -52,6 +52,7 @@ public class SimpleConusmerTest {
 
     @AfterEach
     public void cleanUp() throws IOException, InterruptedException {
+        Thread.sleep(100);
         FileUtils.deleteDirectory(dir);
     }
 
