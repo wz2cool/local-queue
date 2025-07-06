@@ -1,6 +1,7 @@
 package com.github.wz2cool.localqueue;
 
 import com.github.wz2cool.localqueue.event.CloseListener;
+import com.github.wz2cool.localqueue.model.message.MessageOption;
 
 /**
  * producer interface.
@@ -35,6 +36,15 @@ public interface IProducer extends AutoCloseable {
      * @return true if success
      */
     boolean offer(String tag, String messageKey, String message);
+
+    /**
+     * offer message to queue
+     *
+     * @param message message
+     * @param option  message option
+     * @return true if success
+     */
+    boolean offer(String message, MessageOption option);
 
     /**
      * is closed

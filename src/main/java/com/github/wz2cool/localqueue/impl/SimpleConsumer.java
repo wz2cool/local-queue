@@ -293,7 +293,8 @@ public class SimpleConsumer implements IConsumer {
                 positionVersion.get(),
                 position,
                 internalMessage.getContent(),
-                internalMessage.getWriteTime());
+                internalMessage.getWriteTime(),
+                internalMessage.getHeaderMessage());
     }
 
     private boolean moveToPositionInternal(final long position) {

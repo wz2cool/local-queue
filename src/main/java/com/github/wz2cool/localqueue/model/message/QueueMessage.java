@@ -1,5 +1,12 @@
 package com.github.wz2cool.localqueue.model.message;
 
+import com.github.wz2cool.localqueue.model.message.internal.HeaderMessage;
+
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+
 /**
  * queue message
  *
@@ -13,6 +20,7 @@ public class QueueMessage {
     private final long writeTime;
     private final String messageKey;
     private final String tag;
+    private final HeaderMessage headerMessage;
 
     /**
      * constructor
@@ -24,13 +32,21 @@ public class QueueMessage {
      * @param content         content
      * @param writeTime       write time
      */
-    public QueueMessage(String tag, String messageKey, int positionVersion, long position, String content, long writeTime) {
+    public QueueMessage(
+            String tag,
+            String messageKey,
+            int positionVersion,
+            long position,
+            String content,
+            long writeTime,
+            HeaderMessage headerMessage) {
         this.tag = tag;
         this.messageKey = messageKey;
         this.positionVersion = positionVersion;
         this.position = position;
         this.content = content;
         this.writeTime = writeTime;
+        this.headerMessage = headerMessage;
     }
 
     public long getPosition() {
@@ -55,5 +71,19 @@ public class QueueMessage {
 
     public String getTag() {
         return tag;
+    }
+
+    public Optional<String> getHeaderValue(String headerKey) {
+        if (Objects.isNull(headerMessage)) {
+            return Optional.empty();
+        }
+        return headerMessage.getHeaderValue(headerKey);
+    }
+
+    public Set<String> getHeaderKeys() {
+        if (Objects.isNull(headerMessage)) {
+            return new HashSet<>();
+        }
+        return headerMessage.getHeaderKeys();
     }
 }

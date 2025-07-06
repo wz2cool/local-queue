@@ -14,18 +14,18 @@ public class MessageOption {
     /**
      * message tag
      */
-    private String messageTag;
+    private String tag;
     /**
      * message key
      */
     private String messageKey;
 
-    public String getMessageTag() {
-        return messageTag;
+    public String getTag() {
+        return tag;
     }
 
-    public void setMessageTag(String messageTag) {
-        this.messageTag = messageTag;
+    public void setTag(String tag) {
+        this.tag = tag;
     }
 
     public String getMessageKey() {

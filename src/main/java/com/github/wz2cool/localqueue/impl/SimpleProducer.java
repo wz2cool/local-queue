@@ -4,6 +4,8 @@ import com.github.wz2cool.localqueue.IProducer;
 import com.github.wz2cool.localqueue.event.CloseListener;
 import com.github.wz2cool.localqueue.helper.ChronicleQueueHelper;
 import com.github.wz2cool.localqueue.model.config.SimpleProducerConfig;
+import com.github.wz2cool.localqueue.model.message.MessageOption;
+import com.github.wz2cool.localqueue.model.message.internal.HeaderMessage;
 import com.github.wz2cool.localqueue.model.message.internal.InternalMessage;
 import net.openhft.chronicle.core.time.TimeProvider;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -146,6 +148,19 @@ public class SimpleProducer implements IProducer {
         internalWriteMessage.setContent(message);
         internalWriteMessage.setMessageKey(messageKey);
         internalWriteMessage.setTag(tag);
+        return this.messageCache.offer(internalWriteMessage);
+    }
+
+    @Override
+    public boolean offer(String message, MessageOption option) {
+        InternalMessage internalWriteMessage = new InternalMessage();
+        internalWriteMessage.setContent(message);
+        internalWriteMessage.setMessageKey(option.getMessageKey());
+        internalWriteMessage.setTag(option.getTag());
+        if (option.hasHeader()) {
+            HeaderMessage headerMessage = new HeaderMessage(option.getHeaders());
+            internalWriteMessage.setHeaderMessage(headerMessage);
+        }
         return this.messageCache.offer(internalWriteMessage);
     }
 
