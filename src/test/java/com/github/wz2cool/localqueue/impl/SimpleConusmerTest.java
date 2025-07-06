@@ -57,6 +57,18 @@ public class SimpleConusmerTest {
 
     // region take
 
+    @Test
+    public void take_with_header() throws InterruptedException {
+        try (SimpleConsumer simpleConsumer = new SimpleConsumer(consumerConfig);
+             SimpleProducer simpleProducer = new SimpleProducer(producerConfig)) {
+            MessageOption option = new MessageOption();
+            option.addHeader("header1", "value1");
+            simpleProducer.offer("test", option);
+            QueueMessage message = simpleConsumer.take();
+            assertEquals("test", message.getContent());
+            assertEquals("value1", message.getHeaderValue("header1").get());
+        }
+    }
 
     @Test
     public void take_NonEmptyCache_ReturnsQueueMessage() throws InterruptedException {

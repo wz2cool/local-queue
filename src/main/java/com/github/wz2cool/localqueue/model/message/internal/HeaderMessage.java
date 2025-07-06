@@ -12,7 +12,7 @@ import java.util.*;
 
 public class HeaderMessage implements BytesMarshallable {
 
-    private final Map<String, String> headers;
+    private Map<String, String> headers;
 
     public HeaderMessage(Map<String, String> headers) {
         this.headers = headers;
@@ -36,10 +36,15 @@ public class HeaderMessage implements BytesMarshallable {
     public void readMarshallable(BytesIn<?> bytes) throws IORuntimeException, BufferUnderflowException, IllegalStateException, InvalidMarshallableException {
         int mapSize = bytes.readInt();
         if (mapSize > 0) {
+            if (Objects.isNull(headers)) {
+                headers = new HashMap<>(mapSize);
+            }
             for (int i = 0; i < mapSize; i++) {
                 String key = bytes.readUtf8();
                 String value = bytes.readUtf8();
-                headers.put(key, value);
+                if (Objects.nonNull(key)) {
+                    headers.put(key, value);
+                }
             }
         }
     }

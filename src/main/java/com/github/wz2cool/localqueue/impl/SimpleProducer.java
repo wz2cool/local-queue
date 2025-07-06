@@ -136,32 +136,32 @@ public class SimpleProducer implements IProducer {
 
     @Override
     public boolean offer(String messageKey, String message) {
-        InternalMessage internalWriteMessage = new InternalMessage();
-        internalWriteMessage.setContent(message);
-        internalWriteMessage.setMessageKey(messageKey);
-        return this.messageCache.offer(internalWriteMessage);
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(messageKey);
+        return this.messageCache.offer(internalMessage);
     }
 
     @Override
     public boolean offer(String tag, String messageKey, String message) {
-        InternalMessage internalWriteMessage = new InternalMessage();
-        internalWriteMessage.setContent(message);
-        internalWriteMessage.setMessageKey(messageKey);
-        internalWriteMessage.setTag(tag);
-        return this.messageCache.offer(internalWriteMessage);
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(messageKey);
+        internalMessage.setTag(tag);
+        return this.messageCache.offer(internalMessage);
     }
 
     @Override
     public boolean offer(String message, MessageOption option) {
-        InternalMessage internalWriteMessage = new InternalMessage();
-        internalWriteMessage.setContent(message);
-        internalWriteMessage.setMessageKey(option.getMessageKey());
-        internalWriteMessage.setTag(option.getTag());
+        InternalMessage internalMessage = new InternalMessage();
+        internalMessage.setContent(message);
+        internalMessage.setMessageKey(option.getMessageKey());
+        internalMessage.setTag(option.getTag());
         if (option.hasHeader()) {
             HeaderMessage headerMessage = new HeaderMessage(option.getHeaders());
-            internalWriteMessage.setHeaderMessage(headerMessage);
+            internalMessage.setHeaderMessage(headerMessage);
         }
-        return this.messageCache.offer(internalWriteMessage);
+        return this.messageCache.offer(internalMessage);
     }
 
     /**
